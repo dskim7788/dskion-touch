@@ -18,6 +18,18 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        getByName("debug") {
+            // Committed on purpose: a fixed debug key so every CI build signs the same way and
+            // sideloaded installs can update in place instead of failing with a signature
+            // mismatch (AGP otherwise auto-generates a new random debug key per CI runner).
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
