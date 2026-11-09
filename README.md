@@ -28,7 +28,7 @@ dskion-touch/
 ## 빌드 순서 (마일스톤)
 
 1. ✅ 스캐폴드: core+app 모듈, CI, 권한 체크리스트만 있는 HomeScreen
-2. 접근성 서비스 뼈대 (화면 덤프를 Console 화면에 표시만, 매칭·탭 없음)
+2. ✅ 접근성 서비스 뼈대 (화면 덤프를 Console 화면에 표시만, 매칭·탭 없음)
 3. 실제 덤프 기반 첫 `ScreenProfile`/`CommandRule` + 수동 음성 명령 탭
 4. 오버레이 배지
 5. 배달 모드(자동 탭)

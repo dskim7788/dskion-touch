@@ -27,6 +27,13 @@
     <string name="service_status_on">실행 중</string>
     <string name="service_status_off">꺼짐</string>
 
+    <string name="accessibility_service_description">배민/쿠팡이츠 라이더 앱 화면의 버튼 텍스트와 위치를 읽어서 음성 명령 또는 배달 모드로 대신 탭해줍니다. 비밀번호, 결제정보, 개인 메시지는 읽거나 저장하지 않습니다.</string>
+
+    <string name="console_empty_state">아직 인식된 화면이 없어요. 접근성 권한을 켜고 다른 앱을 열어보세요.</string>
+    <string name="console_node_count">노드 %1$d개</string>
+    <string name="console_copy_dump">현재 화면 덤프 복사</string>
+    <string name="console_copy_done">클립보드에 복사했어요</string>
+
     <string name="nav_home">홈</string>
     <string name="nav_console">콘솔</string>
 </resources>
