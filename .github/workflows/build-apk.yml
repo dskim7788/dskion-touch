@@ -1,0 +1,46 @@
+name: Build debug APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build phone app debug APK
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Upload phone app APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: dskion-touch-app-debug
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Publish debug APK to the "debug-latest" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete debug-latest --yes --repo "$GITHUB_REPOSITORY" || true
+          git push origin :refs/tags/debug-latest || true
+          gh release create debug-latest \
+            app/build/outputs/apk/debug/*.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Debug build ($(date -u +%Y-%m-%d))" \
+            --notes "Auto-published from commit $GITHUB_SHA. Always the latest main build - links stay stable across rebuilds."

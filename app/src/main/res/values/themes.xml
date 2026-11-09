@@ -1,0 +1,12 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.DskionTouch" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor" tools:targetApi="21">@color/touch_background_light</item>
+        <item name="android:windowBackground">@color/touch_background_light</item>
+    </style>
+
+    <style name="Theme.DskionTouch.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_icon_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.DskionTouch</item>
+    </style>
+</resources>

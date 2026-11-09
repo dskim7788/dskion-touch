@@ -1,0 +1,32 @@
+<resources>
+    <string name="app_name">dskion touch</string>
+
+    <string name="home_title">dskion touch</string>
+    <string name="home_subtitle">배달 라이더 화면 보조 음성 제어</string>
+
+    <string name="permission_mic_title">마이크 권한</string>
+    <string name="permission_mic_desc">음성 명령 인식을 위한 기본 설정</string>
+    <string name="permission_accessibility_title">접근성 권한</string>
+    <string name="permission_accessibility_desc">화면 버튼 확인 및 실행 — 비밀번호·결제정보·메시지는 저장하지 않음</string>
+    <string name="permission_overlay_title">다른 앱 위에 표시</string>
+    <string name="permission_overlay_desc">서비스 상태를 화면 위에 작게 표시</string>
+    <string name="permission_battery_title">배터리 사용량 제한 해제</string>
+    <string name="permission_battery_desc">운행 중 서비스가 꺼지지 않도록 보조</string>
+
+    <string name="permission_status_granted">허용됨</string>
+    <string name="permission_status_not_granted">필요</string>
+    <string name="permission_action_open_settings">설정 열기</string>
+
+    <string name="mode_title">사용 모드</string>
+    <string name="mode_normal">일반 모드</string>
+    <string name="mode_normal_desc">마이크로 직접 음성 명령</string>
+    <string name="mode_delivery">배달 모드</string>
+    <string name="mode_delivery_desc">화면 감지 기반 자동 실행</string>
+
+    <string name="service_status_title">서비스 상태</string>
+    <string name="service_status_on">실행 중</string>
+    <string name="service_status_off">꺼짐</string>
+
+    <string name="nav_home">홈</string>
+    <string name="nav_console">콘솔</string>
+</resources>
