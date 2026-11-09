@@ -30,6 +30,7 @@ import com.dskion.touch.util.accessibilitySettingsIntent
 import com.dskion.touch.util.batteryOptimizationIntent
 import com.dskion.touch.util.overlaySettingsIntent
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewModel(factory = factory)) {
     val context = LocalContext.current

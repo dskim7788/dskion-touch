@@ -1,6 +1,7 @@
 package com.dskion.touch.ui.console
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -17,6 +18,7 @@ import com.dskion.touch.R
  * accessibility/voice/screen state and a "현재 화면 덤프 복사" action for pulling real
  * 배민/쿠팡이츠 node dumps.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConsoleScreen() {
     Scaffold(
