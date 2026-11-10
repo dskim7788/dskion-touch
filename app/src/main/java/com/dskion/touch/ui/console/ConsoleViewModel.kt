@@ -8,4 +8,5 @@ import kotlinx.coroutines.flow.StateFlow
 class ConsoleViewModel : ViewModel() {
     val serviceRunning: StateFlow<Boolean> = ScreenStateHolder.serviceRunning
     val snapshot: StateFlow<ScreenSnapshot?> = ScreenStateHolder.latestSnapshot
+    val voiceStatus: StateFlow<String?> = ScreenStateHolder.voiceStatus
 }

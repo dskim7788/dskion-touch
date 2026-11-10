@@ -1,24 +1,44 @@
 package com.dskion.touch.accessibility
 
+import android.Manifest
 import android.accessibilityservice.AccessibilityService
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
+import com.dskion.touch.R
 import com.dskion.touch.core.match.CommandMatcher
 import com.dskion.touch.core.model.ScreenSnapshot
 import com.dskion.touch.core.rules.BaeminRules
+import com.dskion.touch.voice.VoiceRecognizer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Reads the foreground window's node tree and publishes it to [ScreenStateHolder] for the
- * Console screen to display, and (milestone 3) can act on a recognized voice command by finding
- * and clicking the matching button on the current screen.
+ * Console screen to display, and can act on a recognized voice command by finding and clicking
+ * the matching button on the current screen.
+ *
+ * Runs as a foreground service (microphone type) so [startVoiceCommand] keeps working after the
+ * user switches away from our own app to the target app - a regular backgrounded Activity can't
+ * use the microphone, but an accessibility service promoted to foreground can.
  */
 class TouchAccessibilityService : AccessibilityService() {
 
     private var lastProcessedAtMillis = 0L
     private val matcher = CommandMatcher(BaeminRules.profiles, BaeminRules.rules)
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     /** The device's home/launcher package — switching apps via home or the recents overview
      * surfaces this package's window, which should never overwrite a captured target-app snapshot. */
@@ -30,7 +50,59 @@ class TouchAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        startAsForegroundService()
         ScreenStateHolder.setServiceRunning(true)
+    }
+
+    private fun startAsForegroundService() {
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        manager.createNotificationChannel(
+            NotificationChannel(NOTIFICATION_CHANNEL_ID, "dskion touch 서비스", NotificationManager.IMPORTANCE_LOW),
+        )
+        val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+            .setContentTitle(getString(R.string.service_status_title))
+            .setContentText(getString(R.string.service_status_on))
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setOngoing(true)
+            .build()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    /**
+     * Counts down (giving the user time to switch to the target app), listens for one spoken
+     * command, and tries to act on it. Publishes progress to [ScreenStateHolder.voiceStatus].
+     */
+    fun startVoiceCommand() {
+        val micGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!micGranted) {
+            ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_mic_required))
+            return
+        }
+
+        serviceScope.launch {
+            for (remaining in VOICE_COMMAND_COUNTDOWN_SECONDS downTo 1) {
+                ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_countdown, remaining))
+                delay(1000)
+            }
+            ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_listening))
+            VoiceRecognizer(this@TouchAccessibilityService).startListening(
+                onResult = { text ->
+                    ScreenStateHolder.setVoiceStatus(
+                        when {
+                            text == null -> getString(R.string.console_voice_no_speech)
+                            tryPerformCommand(text) -> getString(R.string.console_voice_matched, text)
+                            else -> getString(R.string.console_voice_not_matched, text)
+                        },
+                    )
+                },
+                onError = { message -> ScreenStateHolder.setVoiceStatus(message) },
+            )
+        }
     }
 
     /**
@@ -85,12 +157,16 @@ class TouchAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        serviceScope.cancel()
         instance = null
         ScreenStateHolder.setServiceRunning(false)
     }
 
     companion object {
         private const val DEBOUNCE_MILLIS = 300L
+        private const val VOICE_COMMAND_COUNTDOWN_SECONDS = 3
+        private const val NOTIFICATION_CHANNEL_ID = "touch_service"
+        private const val NOTIFICATION_ID = 1
 
         var instance: TouchAccessibilityService? = null
             private set

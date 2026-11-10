@@ -16,11 +16,18 @@ object ScreenStateHolder {
     private val _latestSnapshot = MutableStateFlow<ScreenSnapshot?>(null)
     val latestSnapshot: StateFlow<ScreenSnapshot?> = _latestSnapshot
 
+    private val _voiceStatus = MutableStateFlow<String?>(null)
+    val voiceStatus: StateFlow<String?> = _voiceStatus
+
     fun setServiceRunning(running: Boolean) {
         _serviceRunning.value = running
     }
 
     fun updateSnapshot(snapshot: ScreenSnapshot) {
         _latestSnapshot.value = snapshot
+    }
+
+    fun setVoiceStatus(status: String?) {
+        _voiceStatus.value = status
     }
 }

@@ -1,9 +1,7 @@
 package com.dskion.touch.ui.console
 
-import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.pm.PackageManager
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,7 +17,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dskion.touch.R
 import com.dskion.touch.accessibility.TouchAccessibilityService
@@ -27,27 +24,22 @@ import com.dskion.touch.core.format.ScreenSnapshotFormatter
 import com.dskion.touch.core.model.ScreenNode
 import com.dskion.touch.ui.theme.StatusGranted
 import com.dskion.touch.ui.theme.StatusMissing
-import com.dskion.touch.voice.VoiceRecognizer
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-
-private const val VOICE_TEST_COUNTDOWN_SECONDS = 3
 
 /**
  * Shows the accessibility service's live state and the last screen it read, with a
  * copy-to-clipboard dump (for capturing new 배민/쿠팡이츠 node data) and a one-shot voice-command
  * test button that matches recognized speech against the known rules and taps the target button.
+ * The actual listening runs inside [TouchAccessibilityService] (a foreground service), not here,
+ * so it keeps working after the user switches away from this screen to the target app.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConsoleScreen(viewModel: ConsoleViewModel = viewModel()) {
     val serviceRunning by viewModel.serviceRunning.collectAsState()
     val snapshot by viewModel.snapshot.collectAsState()
+    val voiceStatus by viewModel.voiceStatus.collectAsState()
     val context = LocalContext.current
     var justCopied by remember { mutableStateOf(false) }
-    var voiceStatus by remember { mutableStateOf<String?>(null) }
-    val voiceRecognizer = remember { VoiceRecognizer(context) }
-    val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_console)) }) },
@@ -61,35 +53,7 @@ fun ConsoleScreen(viewModel: ConsoleViewModel = viewModel()) {
         ) {
             ServiceStatusRow(running = serviceRunning)
 
-            Button(onClick = {
-                val micGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-                    PackageManager.PERMISSION_GRANTED
-                if (!micGranted) {
-                    voiceStatus = context.getString(R.string.console_voice_mic_required)
-                    return@Button
-                }
-                // No overlay mic button yet (milestone 4): count down so the user can switch to
-                // the target app first - otherwise this screen itself would still be foreground
-                // when the command tries to match and click.
-                scope.launch {
-                    for (remaining in VOICE_TEST_COUNTDOWN_SECONDS downTo 1) {
-                        voiceStatus = context.getString(R.string.console_voice_countdown, remaining)
-                        delay(1000)
-                    }
-                    voiceStatus = context.getString(R.string.console_voice_listening)
-                    voiceRecognizer.startListening(
-                        onResult = { text ->
-                            voiceStatus = when {
-                                text == null -> context.getString(R.string.console_voice_no_speech)
-                                TouchAccessibilityService.instance?.tryPerformCommand(text) == true ->
-                                    context.getString(R.string.console_voice_matched, text)
-                                else -> context.getString(R.string.console_voice_not_matched, text)
-                            }
-                        },
-                        onError = { message -> voiceStatus = message },
-                    )
-                }
-            }) {
+            Button(onClick = { TouchAccessibilityService.instance?.startVoiceCommand() }) {
                 Text(stringResource(R.string.console_voice_test))
             }
             voiceStatus?.let {
