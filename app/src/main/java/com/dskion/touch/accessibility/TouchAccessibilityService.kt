@@ -17,9 +17,11 @@ import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.dskion.touch.R
+import com.dskion.touch.accessibility.command.NewDispatchCommand
 import com.dskion.touch.core.match.CommandMatcher
 import com.dskion.touch.core.model.ScreenSnapshot
 import com.dskion.touch.core.rules.BaeminRules
+import com.dskion.touch.voice.TtsSpeaker
 import com.dskion.touch.voice.VoiceRecognizer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,7 +43,9 @@ class TouchAccessibilityService : AccessibilityService() {
 
     private var lastProcessedAtMillis = 0L
     private val matcher = CommandMatcher(BaeminRules.profiles, BaeminRules.rules)
+    private val newDispatchCommand = NewDispatchCommand(this)
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private lateinit var ttsSpeaker: TtsSpeaker
 
     /** The device's home/launcher package — switching apps via home or the recents overview
      * surfaces this package's window, which should never overwrite a captured target-app snapshot. */
@@ -53,6 +57,7 @@ class TouchAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        ttsSpeaker = TtsSpeaker(this)
         startAsForegroundService()
         ScreenStateHolder.setServiceRunning(true)
     }
@@ -94,25 +99,37 @@ class TouchAccessibilityService : AccessibilityService() {
             }
             ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_listening))
             VoiceRecognizer(this@TouchAccessibilityService).startListening(
-                onResult = { text ->
-                    ScreenStateHolder.setVoiceStatus(
-                        when {
-                            text == null -> getString(R.string.console_voice_no_speech)
-                            tryPerformCommand(text) -> getString(R.string.console_voice_matched, text)
-                            else -> getString(R.string.console_voice_not_matched, text)
-                        },
-                    )
-                    // The match attempt needs the target app in the foreground at the exact
-                    // moment it runs - a visible/audible "done, safe to switch back" cue matters
-                    // more than any screen text, since the user has no overlay to watch yet.
-                    vibrate()
-                },
+                onResult = { text -> handleRecognizedText(text) },
                 onError = { message ->
                     ScreenStateHolder.setVoiceStatus(message)
                     vibrate()
                 },
             )
         }
+    }
+
+    private fun handleRecognizedText(text: String?) {
+        val dispatchIntent = text?.let(newDispatchCommand::parseIntent)
+        if (text != null && dispatchIntent != null) {
+            newDispatchCommand.execute(dispatchIntent) { resultMessage ->
+                ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_dispatch_result, text, resultMessage))
+                ttsSpeaker.speak(resultMessage)
+                vibrate()
+            }
+            return
+        }
+
+        // The match attempt needs the target app in the foreground at the exact moment it runs -
+        // a visible/audible "done, safe to switch back" cue matters more than any screen text,
+        // since the user has no overlay to watch yet.
+        ScreenStateHolder.setVoiceStatus(
+            when {
+                text == null -> getString(R.string.console_voice_no_speech)
+                tryPerformCommand(text) -> getString(R.string.console_voice_matched, text)
+                else -> getString(R.string.console_voice_not_matched, text)
+            },
+        )
+        vibrate()
     }
 
     private fun vibrate() {
@@ -178,6 +195,7 @@ class TouchAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         serviceScope.cancel()
+        if (::ttsSpeaker.isInitialized) ttsSpeaker.shutdown()
         instance = null
         ScreenStateHolder.setServiceRunning(false)
     }

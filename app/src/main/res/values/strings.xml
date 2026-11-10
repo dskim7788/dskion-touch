@@ -41,6 +41,7 @@
     <string name="console_voice_no_speech">인식된 텍스트가 없어요</string>
     <string name="console_voice_matched">"%1$s" → 명령 실행됨</string>
     <string name="console_voice_not_matched">"%1$s" → 매칭된 명령 없음</string>
+    <string name="console_voice_dispatch_result">"%1$s" → %2$s</string>
 
     <string name="nav_home">홈</string>
     <string name="nav_console">콘솔</string>
