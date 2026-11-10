@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -209,7 +210,7 @@ private fun Waveform(color: Color) {
             Box(
                 modifier = Modifier
                     .width(5.dp)
-                    .height((base * scale).dp)
+                    .height((base.toFloat() * scale).dp)
                     .background(color, RoundedCornerShape(50)),
             )
         }
