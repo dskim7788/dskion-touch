@@ -28,6 +28,10 @@ import com.dskion.touch.core.model.ScreenNode
 import com.dskion.touch.ui.theme.StatusGranted
 import com.dskion.touch.ui.theme.StatusMissing
 import com.dskion.touch.voice.VoiceRecognizer
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+private const val VOICE_TEST_COUNTDOWN_SECONDS = 3
 
 /**
  * Shows the accessibility service's live state and the last screen it read, with a
@@ -43,6 +47,7 @@ fun ConsoleScreen(viewModel: ConsoleViewModel = viewModel()) {
     var justCopied by remember { mutableStateOf(false) }
     var voiceStatus by remember { mutableStateOf<String?>(null) }
     val voiceRecognizer = remember { VoiceRecognizer(context) }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_console)) }) },
@@ -63,18 +68,27 @@ fun ConsoleScreen(viewModel: ConsoleViewModel = viewModel()) {
                     voiceStatus = context.getString(R.string.console_voice_mic_required)
                     return@Button
                 }
-                voiceStatus = context.getString(R.string.console_voice_listening)
-                voiceRecognizer.startListening(
-                    onResult = { text ->
-                        voiceStatus = when {
-                            text == null -> context.getString(R.string.console_voice_no_speech)
-                            TouchAccessibilityService.instance?.tryPerformCommand(text) == true ->
-                                context.getString(R.string.console_voice_matched, text)
-                            else -> context.getString(R.string.console_voice_not_matched, text)
-                        }
-                    },
-                    onError = { message -> voiceStatus = message },
-                )
+                // No overlay mic button yet (milestone 4): count down so the user can switch to
+                // the target app first - otherwise this screen itself would still be foreground
+                // when the command tries to match and click.
+                scope.launch {
+                    for (remaining in VOICE_TEST_COUNTDOWN_SECONDS downTo 1) {
+                        voiceStatus = context.getString(R.string.console_voice_countdown, remaining)
+                        delay(1000)
+                    }
+                    voiceStatus = context.getString(R.string.console_voice_listening)
+                    voiceRecognizer.startListening(
+                        onResult = { text ->
+                            voiceStatus = when {
+                                text == null -> context.getString(R.string.console_voice_no_speech)
+                                TouchAccessibilityService.instance?.tryPerformCommand(text) == true ->
+                                    context.getString(R.string.console_voice_matched, text)
+                                else -> context.getString(R.string.console_voice_not_matched, text)
+                            }
+                        },
+                        onError = { message -> voiceStatus = message },
+                    )
+                }
             }) {
                 Text(stringResource(R.string.console_voice_test))
             }

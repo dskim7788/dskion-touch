@@ -24,6 +24,19 @@ object BaeminRules {
         targetSignature = NodeSignature(resourceId = "start-work-button"),
     )
 
-    val profiles = listOf(readyToStartScreen)
-    val rules = listOf(startWorkRule)
+    /** 운행 시작 후 배차 대기 중 화면 — "신규배차 켜기" 토글(resId="신규배차_켜기버튼")로 식별. */
+    val waitingForDispatchScreen = ScreenProfile(
+        id = "baemin_waiting_for_dispatch",
+        packageName = PACKAGE_NAME,
+        requiredSignatures = listOf(NodeSignature(resourceId = "신규배차_켜기버튼")),
+    )
+
+    val toggleNewDispatchRule = CommandRule(
+        screenProfileId = waitingForDispatchScreen.id,
+        spokenPhrases = setOf("신규배차 켜", "신규배차 켜줘", "배차 켜", "배차 켜줘"),
+        targetSignature = NodeSignature(resourceId = "신규배차_켜기버튼"),
+    )
+
+    val profiles = listOf(readyToStartScreen, waitingForDispatchScreen)
+    val rules = listOf(startWorkRule, toggleNewDispatchRule)
 }

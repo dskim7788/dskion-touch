@@ -38,11 +38,46 @@ class BaeminRulesTest {
         ),
     )
 
+    // Trimmed down from a real node dump captured off the device after "운행시작" was tapped.
+    private fun waitingForDispatchSnapshot() = ScreenSnapshot(
+        packageName = BaeminRules.PACKAGE_NAME,
+        timestampMillis = 1_794_315_032_320L,
+        nodes = listOf(
+            ScreenNode(
+                text = null,
+                resourceId = "신규배차_켜기버튼",
+                className = "android.view.ViewGroup",
+                boundsLeft = 60, boundsTop = 185, boundsRight = 491, boundsBottom = 365,
+                isClickable = true, isEnabled = true,
+            ),
+            ScreenNode(
+                text = "신규배차",
+                resourceId = "bros-textview",
+                className = "android.widget.TextView",
+                boundsLeft = 121, boundsTop = 241, boundsRight = 317, boundsBottom = 310,
+                isClickable = false, isEnabled = true,
+            ),
+        ),
+    )
+
     private val matcher = CommandMatcher(BaeminRules.profiles, BaeminRules.rules)
 
     @Test
     fun `identifies the ready-to-start screen`() {
         assertEquals(BaeminRules.readyToStartScreen, matcher.identifyScreen(readyToStartSnapshot()))
+    }
+
+    @Test
+    fun `identifies the waiting-for-dispatch screen and matches 신규배차 켜줘`() {
+        val snapshot = waitingForDispatchSnapshot()
+        assertEquals(BaeminRules.waitingForDispatchScreen, matcher.identifyScreen(snapshot))
+        val target = matcher.match("신규배차 켜줘", snapshot)
+        assertEquals("신규배차_켜기버튼", target?.resourceId)
+    }
+
+    @Test
+    fun `ready-to-start phrase does not fire on the waiting-for-dispatch screen`() {
+        assertNull(matcher.match("운행 시작", waitingForDispatchSnapshot()))
     }
 
     @Test
