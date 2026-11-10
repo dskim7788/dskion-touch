@@ -70,6 +70,7 @@ private fun AppCommandCard(section: AppCommandSection) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CommandEntry(command: VoiceCommandInfo) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

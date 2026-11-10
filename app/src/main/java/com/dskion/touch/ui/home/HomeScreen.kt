@@ -137,6 +137,7 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ServiceStatusCard(
     running: Boolean,
