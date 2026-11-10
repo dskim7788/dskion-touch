@@ -34,36 +34,30 @@ import com.dskion.touch.ui.theme.StatusMissing
 
 /** Which voice phrases are wired up for each app, what they do, and - for 배민커넥트's commands -
  * an inline editor to add/remove your own synonym phrases on top of the defaults. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CommandsScreen(factory: AppViewModelFactory, viewModel: CommandsViewModel = viewModel(factory = factory)) {
     var selectedIndex by remember { mutableStateOf(0) }
     val section = voiceCommandSections[selectedIndex]
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_commands)) }) },
-    ) { padding ->
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        PlatformTabRow(
+            sections = voiceCommandSections,
+            selectedIndex = selectedIndex,
+            onSelect = { selectedIndex = it },
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            PlatformTabRow(
-                sections = voiceCommandSections,
-                selectedIndex = selectedIndex,
-                onSelect = { selectedIndex = it },
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                AppCommandCard(section, viewModel)
-            }
+            AppCommandCard(section, viewModel)
         }
     }
 }

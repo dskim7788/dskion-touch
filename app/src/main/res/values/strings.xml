@@ -46,6 +46,17 @@
     <string name="console_node_count">노드 %1$d개</string>
     <string name="console_copy_dump">현재 화면 덤프 복사</string>
     <string name="console_copy_done">클립보드에 복사했어요</string>
+    <string name="console_service_running">서비스 상태: 정상 실행 중</string>
+    <string name="console_service_stopped">서비스 상태: 중지됨</string>
+    <string name="console_voice_idle">음성 명령을 테스트해보세요</string>
+    <string name="console_package_label">패키지명</string>
+    <string name="console_node_count_label">노드 개수</string>
+    <string name="console_screen_state_label">화면 상태</string>
+    <string name="console_screen_state_active">화면 인식 중</string>
+    <string name="console_screen_state_idle">대기 중</string>
+    <string name="console_node_list_title">노드 목록</string>
+    <string name="console_node_list_more">더보기</string>
+    <string name="console_node_list_collapse">접기</string>
 
     <string name="console_voice_test">음성 명령 테스트</string>
     <string name="console_voice_countdown">%1$d초 후 듣기 시작 — 지금 배민 화면으로 전환하세요</string>
@@ -65,4 +76,9 @@
     <string name="nav_home">홈</string>
     <string name="nav_commands">명령어</string>
     <string name="nav_console">콘솔</string>
+
+    <string name="header_notifications_action">알림</string>
+    <string name="header_settings_action">설정</string>
+    <string name="header_search_action">검색</string>
+    <string name="header_help_action">도움말</string>
 </resources>

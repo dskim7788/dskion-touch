@@ -46,7 +46,6 @@ import com.dskion.touch.util.accessibilitySettingsIntent
 import com.dskion.touch.util.batteryOptimizationIntent
 import com.dskion.touch.util.overlaySettingsIntent
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewModel(factory = factory)) {
     val context = LocalContext.current
@@ -69,19 +68,13 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.home_title)) })
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Bottom) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
@@ -163,7 +156,6 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
                     modifier = Modifier.weight(1f),
                 )
             }
-        }
     }
 }
 

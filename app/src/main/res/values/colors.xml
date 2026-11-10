@@ -1,6 +1,6 @@
 <resources>
-    <color name="touch_primary">#FF7A1A</color>
-    <color name="touch_background_light">#F7F7F5</color>
-    <color name="touch_background_dark">#121212</color>
+    <color name="touch_primary">#C5F36A</color>
+    <color name="touch_background_light">#E8EDF3</color>
+    <color name="touch_background_dark">#17252D</color>
     <color name="splash_icon_background">#FFFFFF</color>
 </resources>

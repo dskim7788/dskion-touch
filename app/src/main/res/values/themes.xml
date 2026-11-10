@@ -1,6 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Theme.DskionTouch" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor" tools:targetApi="21">@color/touch_background_light</item>
         <item name="android:windowBackground">@color/touch_background_light</item>
     </style>
 
