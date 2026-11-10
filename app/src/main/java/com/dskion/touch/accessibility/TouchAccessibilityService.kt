@@ -1,6 +1,8 @@
 package com.dskion.touch.accessibility
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import com.dskion.touch.core.model.ScreenSnapshot
@@ -13,6 +15,13 @@ import com.dskion.touch.core.model.ScreenSnapshot
 class TouchAccessibilityService : AccessibilityService() {
 
     private var lastProcessedAtMillis = 0L
+
+    /** The device's home/launcher package — switching apps via home or the recents overview
+     * surfaces this package's window, which should never overwrite a captured target-app snapshot. */
+    private val homePackageName: String? by lazy {
+        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -33,9 +42,10 @@ class TouchAccessibilityService : AccessibilityService() {
 
         val root = rootInActiveWindow ?: return
         val packageName = root.packageName?.toString() ?: return
-        // Skip our own app's windows so switching to the Console tab to read a captured
-        // snapshot doesn't immediately overwrite it with the Console screen itself.
+        // Skip our own app and the launcher (home screen / recents overview) so switching
+        // between apps doesn't overwrite the captured target-app snapshot with a transit screen.
         if (packageName == applicationContext.packageName) return
+        if (packageName == homePackageName || packageName == "com.android.systemui") return
         val snapshot = ScreenSnapshot(
             packageName = packageName,
             nodes = root.toScreenNodes(),
