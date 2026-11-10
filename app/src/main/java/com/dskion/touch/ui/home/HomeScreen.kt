@@ -9,11 +9,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
@@ -22,6 +24,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dskion.touch.R
+import com.dskion.touch.core.model.ScreenSnapshot
 import com.dskion.touch.data.OperatingMode
 import com.dskion.touch.ui.AppViewModelFactory
 import com.dskion.touch.ui.theme.StatusGranted
@@ -36,6 +39,9 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val mode by viewModel.mode.collectAsState()
+    val serviceRunning by viewModel.serviceRunning.collectAsState()
+    val latestSnapshot by viewModel.latestSnapshot.collectAsState()
+    val voiceStatus by viewModel.voiceStatus.collectAsState()
 
     val micPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         viewModel.refreshPermissions(context)
@@ -67,6 +73,13 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
                 stringResource(R.string.home_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            ServiceStatusCard(
+                running = serviceRunning,
+                mode = mode,
+                snapshot = latestSnapshot,
+                voiceStatus = voiceStatus,
             )
 
             val state = viewModel.permissionState
@@ -121,6 +134,80 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+@Composable
+private fun ServiceStatusCard(
+    running: Boolean,
+    mode: OperatingMode,
+    snapshot: ScreenSnapshot?,
+    voiceStatus: String?,
+) {
+    val containerColor = if (running) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+    val contentColor = if (running) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+
+    Surface(shape = RoundedCornerShape(24.dp), color = containerColor) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(
+                    imageVector = Icons.Filled.PowerSettingsNew,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.size(32.dp),
+                )
+                Column {
+                    Text(
+                        stringResource(if (running) R.string.service_status_on else R.string.service_status_off),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = contentColor,
+                    )
+                    Text(
+                        stringResource(if (running) R.string.home_status_running_desc else R.string.home_status_off_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = contentColor,
+                    )
+                }
+            }
+
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusChip(
+                    text = stringResource(
+                        if (running) R.string.home_status_chip_accessibility_on else R.string.home_status_chip_accessibility_off,
+                    ),
+                    contentColor = contentColor,
+                )
+                StatusChip(
+                    text = stringResource(if (mode == OperatingMode.NORMAL) R.string.mode_normal else R.string.mode_delivery),
+                    contentColor = contentColor,
+                )
+                StatusChip(
+                    text = snapshot?.let { stringResource(R.string.home_status_chip_screen, it.packageName) }
+                        ?: stringResource(R.string.home_status_chip_screen_none),
+                    contentColor = contentColor,
+                )
+            }
+
+            voiceStatus?.let {
+                Text(
+                    stringResource(R.string.home_status_last_command, it),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = contentColor,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusChip(text: String, contentColor: Color) {
+    Surface(shape = RoundedCornerShape(50), color = contentColor.copy(alpha = 0.16f)) {
+        Text(
+            text,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = contentColor,
+        )
     }
 }
 
