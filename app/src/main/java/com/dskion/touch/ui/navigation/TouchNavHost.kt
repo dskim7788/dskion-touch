@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -21,10 +22,12 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.dskion.touch.R
 import com.dskion.touch.ui.AppViewModelFactory
+import com.dskion.touch.ui.commands.CommandsScreen
 import com.dskion.touch.ui.console.ConsoleScreen
 import com.dskion.touch.ui.home.HomeScreen
 
 private const val ROUTE_HOME = "home"
+private const val ROUTE_COMMANDS = "commands"
 private const val ROUTE_CONSOLE = "console"
 
 @Composable
@@ -43,6 +46,12 @@ fun TouchNavHost(application: Application) {
                     label = { Text(stringResource(R.string.nav_home)) },
                 )
                 NavigationBarItem(
+                    selected = currentRoute == ROUTE_COMMANDS,
+                    onClick = { navController.navigate(ROUTE_COMMANDS) },
+                    icon = { Icon(Icons.Filled.RecordVoiceOver, contentDescription = null) },
+                    label = { Text(stringResource(R.string.nav_commands)) },
+                )
+                NavigationBarItem(
                     selected = currentRoute == ROUTE_CONSOLE,
                     onClick = { navController.navigate(ROUTE_CONSOLE) },
                     icon = { Icon(Icons.Filled.Terminal, contentDescription = null) },
@@ -57,6 +66,7 @@ fun TouchNavHost(application: Application) {
             modifier = Modifier.padding(padding),
         ) {
             composable(ROUTE_HOME) { HomeScreen(factory = factory) }
+            composable(ROUTE_COMMANDS) { CommandsScreen() }
             composable(ROUTE_CONSOLE) { ConsoleScreen() }
         }
     }
