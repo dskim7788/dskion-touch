@@ -56,3 +56,21 @@ internal fun findNodeMatching(
     }
     return null
 }
+
+/**
+ * Label/value rows in the dispatch card have no distinguishing resource-id (both are plain
+ * "bros-textview"), so the value is read off as "whichever sibling's text comes right after the
+ * label, under the label's own parent".
+ */
+internal fun findSiblingTextAfterLabel(root: AccessibilityNodeInfo, isLabel: (String) -> Boolean): String? {
+    val labelNode = findNodeMatching(root) { it.text?.toString()?.let(isLabel) == true } ?: return null
+    val parent = labelNode.parent ?: return null
+    var passedLabel = false
+    for (i in 0 until parent.childCount) {
+        val child = parent.getChild(i) ?: continue
+        val text = child.text?.toString()
+        if (passedLabel && !text.isNullOrBlank()) return text
+        if (!passedLabel && text?.let(isLabel) == true) passedLabel = true
+    }
+    return null
+}

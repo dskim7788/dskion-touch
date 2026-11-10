@@ -19,6 +19,7 @@ import androidx.core.content.ContextCompat
 import com.dskion.touch.R
 import com.dskion.touch.accessibility.command.AcceptDispatchCommand
 import com.dskion.touch.accessibility.command.NewDispatchCommand
+import com.dskion.touch.accessibility.command.RespondDispatchCommand
 import com.dskion.touch.core.match.CommandMatcher
 import com.dskion.touch.core.model.ScreenSnapshot
 import com.dskion.touch.core.rules.BaeminRules
@@ -46,6 +47,7 @@ class TouchAccessibilityService : AccessibilityService() {
     private val matcher = CommandMatcher(BaeminRules.profiles, BaeminRules.rules)
     private val newDispatchCommand = NewDispatchCommand(this)
     private val acceptDispatchCommand = AcceptDispatchCommand(this)
+    private val respondDispatchCommand = RespondDispatchCommand(this)
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private lateinit var ttsSpeaker: TtsSpeaker
 
@@ -119,6 +121,11 @@ class TouchAccessibilityService : AccessibilityService() {
             }
             if (acceptDispatchCommand.parseIntent(text)) {
                 acceptDispatchCommand.execute { resultMessage -> reportDispatchResult(text, resultMessage) }
+                return
+            }
+            val respondIntent = respondDispatchCommand.parseIntent(text)
+            if (respondIntent != null) {
+                respondDispatchCommand.execute(respondIntent) { resultMessage -> reportDispatchResult(text, resultMessage) }
                 return
             }
         }
