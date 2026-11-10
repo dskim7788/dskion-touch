@@ -192,11 +192,17 @@ private fun VoiceHeroCard(running: Boolean, voiceStatus: String?, onTestClick: (
     }
 }
 
+private val WaveformMaxBarHeight = 26.dp
+
 @Composable
 private fun Waveform(color: Color) {
     val transition = rememberInfiniteTransition(label = "waveform")
     val baseHeights = listOf(16, 26, 13, 22, 18)
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
+    Row(
+        modifier = Modifier.height(WaveformMaxBarHeight),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
         baseHeights.forEachIndexed { index, base ->
             val scale by transition.animateFloat(
                 initialValue = 0.4f,
