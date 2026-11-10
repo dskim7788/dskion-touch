@@ -29,7 +29,8 @@ dskion-touch/
 
 1. ✅ 스캐폴드: core+app 모듈, CI, 권한 체크리스트만 있는 HomeScreen
 2. ✅ 접근성 서비스 뼈대 (화면 덤프를 Console 화면에 표시만, 매칭·탭 없음)
-3. 실제 덤프 기반 첫 `ScreenProfile`/`CommandRule` + 수동 음성 명령 탭
+3. 🔸 실제 덤프 기반 첫 `ScreenProfile`/`CommandRule`(배민 "운행시작") + 수동 음성 명령 탭 —
+   콘솔 탭의 "음성 명령 테스트" 버튼으로 검증 중
 4. 오버레이 배지
 5. 배달 모드(자동 탭)
 6. 화면/명령어 반복 추가
