@@ -36,7 +36,7 @@
 
     <string name="console_voice_test">음성 명령 테스트</string>
     <string name="console_voice_countdown">%1$d초 후 듣기 시작 — 지금 배민 화면으로 전환하세요</string>
-    <string name="console_voice_listening">듣는 중…</string>
+    <string name="console_voice_listening">듣는 중… (말하고 나서 진동 울릴 때까지 배민 화면에 그대로 있어주세요)</string>
     <string name="console_voice_mic_required">마이크 권한이 필요해요 — 홈 탭에서 먼저 허용해주세요</string>
     <string name="console_voice_no_speech">인식된 텍스트가 없어요</string>
     <string name="console_voice_matched">"%1$s" → 명령 실행됨</string>

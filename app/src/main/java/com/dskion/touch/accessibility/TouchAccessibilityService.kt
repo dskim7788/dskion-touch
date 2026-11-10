@@ -9,6 +9,9 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.SystemClock
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.app.NotificationCompat
@@ -99,10 +102,27 @@ class TouchAccessibilityService : AccessibilityService() {
                             else -> getString(R.string.console_voice_not_matched, text)
                         },
                     )
+                    // The match attempt needs the target app in the foreground at the exact
+                    // moment it runs - a visible/audible "done, safe to switch back" cue matters
+                    // more than any screen text, since the user has no overlay to watch yet.
+                    vibrate()
                 },
-                onError = { message -> ScreenStateHolder.setVoiceStatus(message) },
+                onError = { message ->
+                    ScreenStateHolder.setVoiceStatus(message)
+                    vibrate()
+                },
             )
         }
+    }
+
+    private fun vibrate() {
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            getSystemService(VibratorManager::class.java)?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Vibrator::class.java)
+        } ?: return
+        vibrator.vibrate(VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE))
     }
 
     /**
