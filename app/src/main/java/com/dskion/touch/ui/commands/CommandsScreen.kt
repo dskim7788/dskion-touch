@@ -170,22 +170,36 @@ private fun CommandKindBadge(kind: CommandKind) {
 private fun CommandEntry(command: VoiceCommandInfo, viewModel: CommandsViewModel) {
     var newPhrase by remember(command.editableCommand) { mutableStateOf("") }
     var editingPhrase by remember(command.editableCommand) { mutableStateOf<String?>(null) }
+    var editingIsDefault by remember(command.editableCommand) { mutableStateOf(false) }
     var editDraft by remember(command.editableCommand) { mutableStateOf("") }
     val extraPhrasesFlow = remember(command.editableCommand) { command.editableCommand?.let(viewModel::extraPhrases) }
     val extraPhrases by (extraPhrasesFlow?.collectAsState(initial = emptySet()) ?: remember { mutableStateOf(emptySet<String>()) })
+    val hiddenDefaultsFlow = remember(command.editableCommand) { command.editableCommand?.let(viewModel::hiddenDefaults) }
+    val hiddenDefaults by (hiddenDefaultsFlow?.collectAsState(initial = emptySet()) ?: remember { mutableStateOf(emptySet<String>()) })
+    val visibleDefaults = command.phrases.filterNot { it in hiddenDefaults }
 
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         CommandKindBadge(command.kind)
 
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                command.phrases.forEach { phrase -> PhraseChip(phrase) }
+                visibleDefaults.forEach { phrase ->
+                    PhraseChip(
+                        phrase,
+                        onEdit = {
+                            editingPhrase = phrase
+                            editingIsDefault = true
+                            editDraft = phrase
+                        },
+                    )
+                }
                 extraPhrases.forEach { phrase ->
                     PhraseChip(
                         phrase,
                         removable = true,
                         onEdit = {
                             editingPhrase = phrase
+                            editingIsDefault = false
                             editDraft = phrase
                         },
                         onRemove = { command.editableCommand?.let { viewModel.removePhrase(it, phrase) } },
@@ -223,6 +237,9 @@ private fun CommandEntry(command: VoiceCommandInfo, viewModel: CommandsViewModel
                 if (phraseBeingEdited != null) {
                     AlertDialog(
                         onDismissRequest = { editingPhrase = null },
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         title = { Text(stringResource(R.string.commands_edit_phrase_title)) },
                         text = {
                             OutlinedTextField(
@@ -235,7 +252,11 @@ private fun CommandEntry(command: VoiceCommandInfo, viewModel: CommandsViewModel
                             TextButton(
                                 onClick = {
                                     if (editDraft.isNotBlank()) {
-                                        viewModel.editPhrase(editable, phraseBeingEdited, editDraft)
+                                        if (editingIsDefault) {
+                                            viewModel.editDefaultPhrase(editable, phraseBeingEdited, editDraft)
+                                        } else {
+                                            viewModel.editPhrase(editable, phraseBeingEdited, editDraft)
+                                        }
                                     }
                                     editingPhrase = null
                                 },
@@ -268,7 +289,7 @@ private fun PhraseChip(
                 "\"$phrase\"",
                 modifier = Modifier
                     .padding(start = 12.dp, end = if (removable) 4.dp else 12.dp, top = 6.dp, bottom = 6.dp)
-                    .then(if (removable) Modifier.clickable(onClick = onEdit) else Modifier),
+                    .clickable(onClick = onEdit),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )

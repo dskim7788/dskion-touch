@@ -203,10 +203,12 @@ class TouchAccessibilityService : AccessibilityService() {
 
     private suspend fun buildMatcher(): CommandMatcher {
         val extraStartWork = phraseRepository.extraPhrasesSnapshot(EditableCommand.START_WORK)
-        val startWorkRule = if (extraStartWork.isEmpty()) {
+        val hiddenStartWork = phraseRepository.hiddenDefaultsSnapshot(EditableCommand.START_WORK)
+        val startWorkPhrases = (BaeminRules.startWorkRule.spokenPhrases - hiddenStartWork) + extraStartWork
+        val startWorkRule = if (startWorkPhrases == BaeminRules.startWorkRule.spokenPhrases) {
             BaeminRules.startWorkRule
         } else {
-            BaeminRules.startWorkRule.copy(spokenPhrases = BaeminRules.startWorkRule.spokenPhrases + extraStartWork)
+            BaeminRules.startWorkRule.copy(spokenPhrases = startWorkPhrases)
         }
         return CommandMatcher(BaeminRules.profiles, listOf(startWorkRule, BaeminRules.toggleNewDispatchRule))
     }

@@ -24,12 +24,20 @@ enum class EditableCommand(val id: String, val defaultPhrases: List<String>) {
 }
 
 /** User-added extra trigger phrases per [EditableCommand], layered on top of its hardcoded
- * defaults - never replacing them, so a bad edit can't break the command entirely. */
+ * defaults - never replacing them, so a bad edit can't break the command entirely. Editing a
+ * default (see [editDefaultPhrase]) hides it via [hiddenDefaults] rather than deleting it from
+ * source, and adds the replacement as a normal extra phrase. */
 class CommandPhraseRepository(private val context: Context) {
     private fun key(command: EditableCommand) = stringSetPreferencesKey("extra_${command.id}")
+    private fun hiddenDefaultsKey(command: EditableCommand) = stringSetPreferencesKey("hidden_defaults_${command.id}")
 
     fun extraPhrases(command: EditableCommand): Flow<Set<String>> =
         context.commandPhrasesDataStore.data.map { prefs -> prefs[key(command)] ?: emptySet() }
+
+    fun hiddenDefaults(command: EditableCommand): Flow<Set<String>> =
+        context.commandPhrasesDataStore.data.map { prefs -> prefs[hiddenDefaultsKey(command)] ?: emptySet() }
+
+    suspend fun hiddenDefaultsSnapshot(command: EditableCommand): Set<String> = hiddenDefaults(command).first()
 
     suspend fun extraPhrasesSnapshot(command: EditableCommand): Set<String> = extraPhrases(command).first()
 
@@ -52,6 +60,20 @@ class CommandPhraseRepository(private val context: Context) {
         if (trimmed.isEmpty() || trimmed == oldPhrase) return
         context.commandPhrasesDataStore.edit { prefs ->
             prefs[key(command)] = (prefs[key(command)] ?: emptySet()) - oldPhrase + trimmed
+        }
+    }
+
+    /** "Editing" a default phrase hides the original (its hardcoded match logic is untouched -
+     * only START_WORK's rule actually reads [hiddenDefaults] to drop it from recognition; the
+     * other commands' defaults are substring-based and were never driven by this list) and adds
+     * the replacement text as a normal extra phrase, so it's independently editable/removable
+     * from then on. */
+    suspend fun editDefaultPhrase(command: EditableCommand, oldPhrase: String, newPhrase: String) {
+        val trimmed = newPhrase.trim()
+        if (trimmed.isEmpty()) return
+        context.commandPhrasesDataStore.edit { prefs ->
+            prefs[hiddenDefaultsKey(command)] = (prefs[hiddenDefaultsKey(command)] ?: emptySet()) + oldPhrase
+            prefs[key(command)] = (prefs[key(command)] ?: emptySet()) + trimmed
         }
     }
 }

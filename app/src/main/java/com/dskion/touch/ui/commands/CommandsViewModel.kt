@@ -10,6 +10,8 @@ import kotlinx.coroutines.launch
 class CommandsViewModel(private val repository: CommandPhraseRepository) : ViewModel() {
     fun extraPhrases(command: EditableCommand): Flow<Set<String>> = repository.extraPhrases(command)
 
+    fun hiddenDefaults(command: EditableCommand): Flow<Set<String>> = repository.hiddenDefaults(command)
+
     fun addPhrase(command: EditableCommand, phrase: String) {
         viewModelScope.launch { repository.addPhrase(command, phrase) }
     }
@@ -20,5 +22,9 @@ class CommandsViewModel(private val repository: CommandPhraseRepository) : ViewM
 
     fun editPhrase(command: EditableCommand, oldPhrase: String, newPhrase: String) {
         viewModelScope.launch { repository.editPhrase(command, oldPhrase, newPhrase) }
+    }
+
+    fun editDefaultPhrase(command: EditableCommand, oldPhrase: String, newPhrase: String) {
+        viewModelScope.launch { repository.editDefaultPhrase(command, oldPhrase, newPhrase) }
     }
 }

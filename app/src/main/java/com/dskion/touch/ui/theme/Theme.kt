@@ -18,6 +18,18 @@ private val LightColors = lightColorScheme(
     surface = TouchSurfaceLight,
     onSurface = TouchOnSurfaceLight,
     onBackground = TouchOnSurfaceLight,
+    surfaceVariant = TouchSurfaceVariantLight,
+    onSurfaceVariant = TouchOnSurfaceVariantLight,
+    outline = TouchOutlineLight,
+    outlineVariant = TouchSurfaceVariantLight,
+    surfaceTint = TouchPrimary,
+    surfaceContainerLowest = TouchSurfaceLight,
+    surfaceContainerLow = TouchSurfaceLight,
+    surfaceContainer = TouchSurfaceLight,
+    surfaceContainerHigh = TouchSurfaceLight,
+    surfaceContainerHighest = TouchSurfaceLight,
+    surfaceDim = TouchBackgroundLight,
+    surfaceBright = TouchSurfaceLight,
 )
 
 private val DarkColors = darkColorScheme(
@@ -29,6 +41,18 @@ private val DarkColors = darkColorScheme(
     surface = TouchSurfaceDark,
     onSurface = TouchOnSurfaceDark,
     onBackground = TouchOnSurfaceDark,
+    surfaceVariant = TouchSurfaceVariantDark,
+    onSurfaceVariant = TouchOnSurfaceVariantDark,
+    outline = TouchOutlineDark,
+    outlineVariant = TouchSurfaceVariantDark,
+    surfaceTint = TouchPrimary,
+    surfaceContainerLowest = TouchBackgroundDark,
+    surfaceContainerLow = TouchSurfaceDark,
+    surfaceContainer = TouchSurfaceDark,
+    surfaceContainerHigh = TouchSurfaceDark,
+    surfaceContainerHighest = TouchSurfaceVariantDark,
+    surfaceDim = TouchBackgroundDark,
+    surfaceBright = TouchSurfaceDark,
 )
 
 private val TouchShapes = Shapes(
