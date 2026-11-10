@@ -4,6 +4,10 @@ import androidx.compose.ui.graphics.Color
 
 val TouchPrimary = Color(0xFFFF7A1A)
 val TouchPrimaryDark = Color(0xFFFFA866)
+val TouchPrimaryContainerLight = Color(0xFFFFE0C7)
+val TouchOnPrimaryContainerLight = Color(0xFF7A3900)
+val TouchPrimaryContainerDark = Color(0xFF5C3100)
+val TouchOnPrimaryContainerDark = Color(0xFFFFDBC2)
 val TouchBackgroundLight = Color(0xFFF7F7F5)
 val TouchBackgroundDark = Color(0xFF121212)
 val TouchSurfaceLight = Color(0xFFFFFFFF)

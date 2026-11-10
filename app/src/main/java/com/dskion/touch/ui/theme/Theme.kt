@@ -12,6 +12,8 @@ import androidx.compose.ui.unit.dp
 private val LightColors = lightColorScheme(
     primary = TouchPrimary,
     onPrimary = TouchSurfaceLight,
+    primaryContainer = TouchPrimaryContainerLight,
+    onPrimaryContainer = TouchOnPrimaryContainerLight,
     background = TouchBackgroundLight,
     surface = TouchSurfaceLight,
     onSurface = TouchOnSurfaceLight,
@@ -21,6 +23,8 @@ private val LightColors = lightColorScheme(
 private val DarkColors = darkColorScheme(
     primary = TouchPrimaryDark,
     onPrimary = TouchOnSurfaceLight,
+    primaryContainer = TouchPrimaryContainerDark,
+    onPrimaryContainer = TouchOnPrimaryContainerDark,
     background = TouchBackgroundDark,
     surface = TouchSurfaceDark,
     onSurface = TouchOnSurfaceDark,

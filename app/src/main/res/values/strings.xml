@@ -53,6 +53,9 @@
 
     <string name="commands_not_ready">준비 중</string>
     <string name="commands_empty">아직 연결된 음성 명령이 없어요</string>
+    <string name="commands_add_phrase_hint">새 문구 추가</string>
+    <string name="commands_add_phrase_action">문구 추가</string>
+    <string name="commands_remove_phrase_action">문구 삭제</string>
 
     <string name="nav_home">홈</string>
     <string name="nav_commands">명령어</string>

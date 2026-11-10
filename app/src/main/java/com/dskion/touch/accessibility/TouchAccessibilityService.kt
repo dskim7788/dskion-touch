@@ -23,6 +23,8 @@ import com.dskion.touch.accessibility.command.RespondDispatchCommand
 import com.dskion.touch.core.match.CommandMatcher
 import com.dskion.touch.core.model.ScreenSnapshot
 import com.dskion.touch.core.rules.BaeminRules
+import com.dskion.touch.data.CommandPhraseRepository
+import com.dskion.touch.data.EditableCommand
 import com.dskion.touch.voice.TtsSpeaker
 import com.dskion.touch.voice.VoiceRecognizer
 import kotlinx.coroutines.CoroutineScope
@@ -44,7 +46,7 @@ import kotlinx.coroutines.launch
 class TouchAccessibilityService : AccessibilityService() {
 
     private var lastProcessedAtMillis = 0L
-    private val matcher = CommandMatcher(BaeminRules.profiles, BaeminRules.rules)
+    private val phraseRepository = CommandPhraseRepository(this)
     private val newDispatchCommand = NewDispatchCommand(this)
     private val acceptDispatchCommand = AcceptDispatchCommand(this)
     private val respondDispatchCommand = RespondDispatchCommand(this)
@@ -103,7 +105,7 @@ class TouchAccessibilityService : AccessibilityService() {
             }
             ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_listening))
             VoiceRecognizer(this@TouchAccessibilityService).startListening(
-                onResult = { text -> handleRecognizedText(text) },
+                onResult = { text -> serviceScope.launch { handleRecognizedText(text) } },
                 onError = { message ->
                     ScreenStateHolder.setVoiceStatus(message)
                     vibrate()
@@ -112,8 +114,26 @@ class TouchAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun handleRecognizedText(text: String?) {
+    private suspend fun handleRecognizedText(text: String?) {
         if (text != null) {
+            val normalized = text.replace(" ", "")
+            // User-added synonym phrases (명령어 탭에서 편집) always win first, on top of each
+            // command's own hardcoded keyword logic below.
+            val customHandlers = listOf(
+                EditableCommand.NEW_DISPATCH_ON to { newDispatchCommand.execute(true) { m -> reportDispatchResult(text, m) } },
+                EditableCommand.NEW_DISPATCH_OFF to { newDispatchCommand.execute(false) { m -> reportDispatchResult(text, m) } },
+                EditableCommand.ACCEPT_DISPATCH to { acceptDispatchCommand.execute { m -> reportDispatchResult(text, m) } },
+                EditableCommand.RESPOND_ACCEPT to { respondDispatchCommand.execute(true) { m -> reportDispatchResult(text, m) } },
+                EditableCommand.RESPOND_REJECT to { respondDispatchCommand.execute(false) { m -> reportDispatchResult(text, m) } },
+            )
+            for ((command, action) in customHandlers) {
+                val extra = phraseRepository.extraPhrasesSnapshot(command)
+                if (extra.any { normalized.contains(it.replace(" ", "")) }) {
+                    action()
+                    return
+                }
+            }
+
             val dispatchIntent = newDispatchCommand.parseIntent(text)
             if (dispatchIntent != null) {
                 newDispatchCommand.execute(dispatchIntent) { resultMessage -> reportDispatchResult(text, resultMessage) }
@@ -161,10 +181,10 @@ class TouchAccessibilityService : AccessibilityService() {
 
     /**
      * Re-reads the current screen, matches [spokenText] (null = 배달 모드 auto-trigger) against
-     * the known rules, and clicks the target node if one is found. Returns whether a click was
-     * attempted — not a guarantee the target app actually acted on it.
+     * the known rules (plus any 명령어 탭 custom phrases), and clicks the target node if one is
+     * found. Returns whether a click was attempted — not a guarantee the target app acted on it.
      */
-    fun tryPerformCommand(spokenText: String?): Boolean {
+    private suspend fun tryPerformCommand(spokenText: String?): Boolean {
         val root = rootInActiveWindow ?: return false
         val packageName = root.packageName?.toString() ?: return false
         val snapshot = ScreenSnapshot(
@@ -172,13 +192,23 @@ class TouchAccessibilityService : AccessibilityService() {
             nodes = root.toScreenNodes(),
             timestampMillis = System.currentTimeMillis(),
         )
-        val target = matcher.match(spokenText, snapshot) ?: return false
+        val target = buildMatcher().match(spokenText, snapshot) ?: return false
 
         val liveNode = target.resourceId?.let { root.findByResourceId(it) }
         if (liveNode != null && liveNode.isClickable && liveNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
             return true
         }
         return tapAt(target.centerX, target.centerY)
+    }
+
+    private suspend fun buildMatcher(): CommandMatcher {
+        val extraStartWork = phraseRepository.extraPhrasesSnapshot(EditableCommand.START_WORK)
+        val startWorkRule = if (extraStartWork.isEmpty()) {
+            BaeminRules.startWorkRule
+        } else {
+            BaeminRules.startWorkRule.copy(spokenPhrases = BaeminRules.startWorkRule.spokenPhrases + extraStartWork)
+        }
+        return CommandMatcher(BaeminRules.profiles, listOf(startWorkRule, BaeminRules.toggleNewDispatchRule))
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {

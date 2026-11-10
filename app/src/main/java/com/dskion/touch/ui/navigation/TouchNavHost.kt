@@ -66,7 +66,7 @@ fun TouchNavHost(application: Application) {
             modifier = Modifier.padding(padding),
         ) {
             composable(ROUTE_HOME) { HomeScreen(factory = factory) }
-            composable(ROUTE_COMMANDS) { CommandsScreen() }
+            composable(ROUTE_COMMANDS) { CommandsScreen(factory = factory) }
             composable(ROUTE_CONSOLE) { ConsoleScreen() }
         }
     }
