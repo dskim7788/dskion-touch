@@ -11,6 +11,7 @@ data class ScreenNode(
     val boundsBottom: Int,
     val isClickable: Boolean,
     val isEnabled: Boolean,
+    val contentDescription: String? = null,
 ) {
     val centerX: Int get() = (boundsLeft + boundsRight) / 2
     val centerY: Int get() = (boundsTop + boundsBottom) / 2

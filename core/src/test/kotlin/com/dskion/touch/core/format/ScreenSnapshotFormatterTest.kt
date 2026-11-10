@@ -7,7 +7,7 @@ import kotlin.test.assertTrue
 
 class ScreenSnapshotFormatterTest {
 
-    private fun node(text: String?, resourceId: String?) = ScreenNode(
+    private fun node(text: String?, resourceId: String?, contentDescription: String? = null) = ScreenNode(
         text = text,
         resourceId = resourceId,
         className = "android.widget.Button",
@@ -17,6 +17,7 @@ class ScreenSnapshotFormatterTest {
         boundsBottom = 70,
         isClickable = true,
         isEnabled = true,
+        contentDescription = contentDescription,
     )
 
     @Test
@@ -25,7 +26,7 @@ class ScreenSnapshotFormatterTest {
             packageName = "com.example.rider",
             nodes = listOf(
                 node(text = "수락하기", resourceId = "com.example.rider:id/accept_button"),
-                node(text = null, resourceId = null),
+                node(text = null, resourceId = null, contentDescription = "수락 버튼"),
             ),
             timestampMillis = 1_000L,
         )
@@ -39,5 +40,6 @@ class ScreenSnapshotFormatterTest {
         assertTrue(output.contains("bounds=(10,20,110,70)"))
         assertTrue(output.contains("text=null"))
         assertTrue(output.contains("resId=null"))
+        assertTrue(output.contains("desc=\"수락 버튼\""))
     }
 }

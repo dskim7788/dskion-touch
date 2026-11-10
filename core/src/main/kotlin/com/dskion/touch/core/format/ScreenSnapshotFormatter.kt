@@ -12,6 +12,7 @@ object ScreenSnapshotFormatter {
         snapshot.nodes.forEachIndexed { index, node ->
             appendLine(
                 "[$index] text=${node.text.quoteOrNull()} resId=${node.resourceId.quoteOrNull()} " +
+                    "desc=${node.contentDescription.quoteOrNull()} " +
                     "class=${node.className.quoteOrNull()} " +
                     "bounds=(${node.boundsLeft},${node.boundsTop},${node.boundsRight},${node.boundsBottom}) " +
                     "clickable=${node.isClickable} enabled=${node.isEnabled}",

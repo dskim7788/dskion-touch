@@ -22,6 +22,7 @@ fun AccessibilityNodeInfo.toScreenNodes(): List<ScreenNode> {
             boundsBottom = bounds.bottom,
             isClickable = node.isClickable,
             isEnabled = node.isEnabled,
+            contentDescription = node.contentDescription?.toString(),
         )
         for (i in 0 until node.childCount) {
             walk(node.getChild(i))
