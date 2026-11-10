@@ -33,6 +33,9 @@ class TouchAccessibilityService : AccessibilityService() {
 
         val root = rootInActiveWindow ?: return
         val packageName = root.packageName?.toString() ?: return
+        // Skip our own app's windows so switching to the Console tab to read a captured
+        // snapshot doesn't immediately overwrite it with the Console screen itself.
+        if (packageName == applicationContext.packageName) return
         val snapshot = ScreenSnapshot(
             packageName = packageName,
             nodes = root.toScreenNodes(),
