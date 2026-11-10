@@ -169,6 +169,8 @@ private fun CommandKindBadge(kind: CommandKind) {
 @Composable
 private fun CommandEntry(command: VoiceCommandInfo, viewModel: CommandsViewModel) {
     var newPhrase by remember(command.editableCommand) { mutableStateOf("") }
+    var editingPhrase by remember(command.editableCommand) { mutableStateOf<String?>(null) }
+    var editDraft by remember(command.editableCommand) { mutableStateOf("") }
     val extraPhrasesFlow = remember(command.editableCommand) { command.editableCommand?.let(viewModel::extraPhrases) }
     val extraPhrases by (extraPhrasesFlow?.collectAsState(initial = emptySet()) ?: remember { mutableStateOf(emptySet<String>()) })
 
@@ -179,7 +181,15 @@ private fun CommandEntry(command: VoiceCommandInfo, viewModel: CommandsViewModel
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 command.phrases.forEach { phrase -> PhraseChip(phrase) }
                 extraPhrases.forEach { phrase ->
-                    PhraseChip(phrase, removable = true) { command.editableCommand?.let { viewModel.removePhrase(it, phrase) } }
+                    PhraseChip(
+                        phrase,
+                        removable = true,
+                        onEdit = {
+                            editingPhrase = phrase
+                            editDraft = phrase
+                        },
+                        onRemove = { command.editableCommand?.let { viewModel.removePhrase(it, phrase) } },
+                    )
                 }
             }
             Text(
@@ -208,18 +218,57 @@ private fun CommandEntry(command: VoiceCommandInfo, viewModel: CommandsViewModel
                         Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.commands_add_phrase_action))
                     }
                 }
+
+                val phraseBeingEdited = editingPhrase
+                if (phraseBeingEdited != null) {
+                    AlertDialog(
+                        onDismissRequest = { editingPhrase = null },
+                        title = { Text(stringResource(R.string.commands_edit_phrase_title)) },
+                        text = {
+                            OutlinedTextField(
+                                value = editDraft,
+                                onValueChange = { editDraft = it },
+                                singleLine = true,
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    if (editDraft.isNotBlank()) {
+                                        viewModel.editPhrase(editable, phraseBeingEdited, editDraft)
+                                    }
+                                    editingPhrase = null
+                                },
+                            ) {
+                                Text(stringResource(R.string.commands_edit_phrase_save))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { editingPhrase = null }) {
+                                Text(stringResource(R.string.commands_edit_phrase_cancel))
+                            }
+                        },
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun PhraseChip(phrase: String, removable: Boolean = false, onRemove: () -> Unit = {}) {
+private fun PhraseChip(
+    phrase: String,
+    removable: Boolean = false,
+    onEdit: () -> Unit = {},
+    onRemove: () -> Unit = {},
+) {
     Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "\"$phrase\"",
-                modifier = Modifier.padding(start = 12.dp, end = if (removable) 4.dp else 12.dp, top = 6.dp, bottom = 6.dp),
+                modifier = Modifier
+                    .padding(start = 12.dp, end = if (removable) 4.dp else 12.dp, top = 6.dp, bottom = 6.dp)
+                    .then(if (removable) Modifier.clickable(onClick = onEdit) else Modifier),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )

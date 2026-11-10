@@ -46,4 +46,12 @@ class CommandPhraseRepository(private val context: Context) {
             prefs[key(command)] = (prefs[key(command)] ?: emptySet()) - phrase
         }
     }
+
+    suspend fun editPhrase(command: EditableCommand, oldPhrase: String, newPhrase: String) {
+        val trimmed = newPhrase.trim()
+        if (trimmed.isEmpty() || trimmed == oldPhrase) return
+        context.commandPhrasesDataStore.edit { prefs ->
+            prefs[key(command)] = (prefs[key(command)] ?: emptySet()) - oldPhrase + trimmed
+        }
+    }
 }

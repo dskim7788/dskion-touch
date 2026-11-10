@@ -72,6 +72,9 @@
     <string name="commands_add_phrase_hint">새 문구 추가</string>
     <string name="commands_add_phrase_action">문구 추가</string>
     <string name="commands_remove_phrase_action">문구 삭제</string>
+    <string name="commands_edit_phrase_title">문구 수정</string>
+    <string name="commands_edit_phrase_save">저장</string>
+    <string name="commands_edit_phrase_cancel">취소</string>
 
     <string name="nav_home">홈</string>
     <string name="nav_commands">명령어</string>

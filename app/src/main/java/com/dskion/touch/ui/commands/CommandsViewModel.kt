@@ -17,4 +17,8 @@ class CommandsViewModel(private val repository: CommandPhraseRepository) : ViewM
     fun removePhrase(command: EditableCommand, phrase: String) {
         viewModelScope.launch { repository.removePhrase(command, phrase) }
     }
+
+    fun editPhrase(command: EditableCommand, oldPhrase: String, newPhrase: String) {
+        viewModelScope.launch { repository.editPhrase(command, oldPhrase, newPhrase) }
+    }
 }
