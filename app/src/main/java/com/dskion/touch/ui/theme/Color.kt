@@ -17,3 +17,4 @@ val TouchOnSurfaceDark = Color(0xFFE9E9E9)
 
 val StatusGranted = Color(0xFF2E9E5B)
 val StatusMissing = Color(0xFFE0524D)
+val StatusWarning = Color(0xFFF2B544)

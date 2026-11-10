@@ -3,6 +3,11 @@
 
     <string name="home_title">dskion touch</string>
     <string name="home_subtitle">배달 라이더 화면 보조 음성 제어</string>
+    <string name="home_hero_title">음성 한마디로 배달을 시작하세요!</string>
+    <string name="home_hero_subtitle">디스키온 터치가 더 스마트한 배달 라이딩을 도와드립니다.</string>
+    <string name="home_status_no_command">아직 실행된 명령이 없어요</string>
+    <string name="home_permissions_title">권한 체크리스트</string>
+    <string name="home_permissions_all_granted">모두 허용됨</string>
 
     <string name="permission_mic_title">마이크 권한</string>
     <string name="permission_mic_desc">음성 명령 인식을 위한 기본 설정</string>

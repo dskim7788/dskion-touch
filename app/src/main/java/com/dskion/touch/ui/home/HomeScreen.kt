@@ -3,22 +3,31 @@ package com.dskion.touch.ui.home
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -69,11 +78,18 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                stringResource(R.string.home_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    stringResource(R.string.home_hero_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    stringResource(R.string.home_hero_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             ServiceStatusCard(
                 running = serviceRunning,
@@ -83,56 +99,55 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
             )
 
             val state = viewModel.permissionState
-            PermissionRow(
-                title = stringResource(R.string.permission_mic_title),
-                description = stringResource(R.string.permission_mic_desc),
-                granted = state.micGranted,
-                onAction = { micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
-            )
-            PermissionRow(
-                title = stringResource(R.string.permission_accessibility_title),
-                description = stringResource(R.string.permission_accessibility_desc),
-                granted = state.accessibilityGranted,
-                onAction = { context.startActivity(accessibilitySettingsIntent()) },
-            )
-            PermissionRow(
-                title = stringResource(R.string.permission_overlay_title),
-                description = stringResource(R.string.permission_overlay_desc),
-                granted = state.overlayGranted,
-                onAction = { context.startActivity(overlaySettingsIntent(context)) },
-            )
-            PermissionRow(
-                title = stringResource(R.string.permission_battery_title),
-                description = stringResource(R.string.permission_battery_desc),
-                granted = state.batteryIgnored,
-                onAction = { context.startActivity(batteryOptimizationIntent(context)) },
-            )
+            val allPermissionsGranted = state.micGranted && state.accessibilityGranted &&
+                state.overlayGranted && state.batteryIgnored
+            PermissionChecklist(allGranted = allPermissionsGranted) {
+                PermissionRow(
+                    title = stringResource(R.string.permission_mic_title),
+                    description = stringResource(R.string.permission_mic_desc),
+                    granted = state.micGranted,
+                    onAction = { micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+                )
+                PermissionRow(
+                    title = stringResource(R.string.permission_accessibility_title),
+                    description = stringResource(R.string.permission_accessibility_desc),
+                    granted = state.accessibilityGranted,
+                    onAction = { context.startActivity(accessibilitySettingsIntent()) },
+                )
+                PermissionRow(
+                    title = stringResource(R.string.permission_overlay_title),
+                    description = stringResource(R.string.permission_overlay_desc),
+                    granted = state.overlayGranted,
+                    onAction = { context.startActivity(overlaySettingsIntent(context)) },
+                )
+                PermissionRow(
+                    title = stringResource(R.string.permission_battery_title),
+                    description = stringResource(R.string.permission_battery_desc),
+                    granted = state.batteryIgnored,
+                    onAction = { context.startActivity(batteryOptimizationIntent(context)) },
+                )
+            }
 
             Spacer(Modifier.height(8.dp))
             Text(stringResource(R.string.mode_title), style = MaterialTheme.typography.titleMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ModeChip(
+                ModeCard(
                     selected = mode == OperatingMode.NORMAL,
+                    icon = Icons.Filled.Mic,
                     title = stringResource(R.string.mode_normal),
+                    description = stringResource(R.string.mode_normal_desc),
                     onClick = { viewModel.setMode(OperatingMode.NORMAL) },
                     modifier = Modifier.weight(1f),
                 )
-                ModeChip(
+                ModeCard(
                     selected = mode == OperatingMode.DELIVERY,
+                    icon = Icons.Filled.TwoWheeler,
                     title = stringResource(R.string.mode_delivery),
+                    description = stringResource(R.string.mode_delivery_desc),
                     onClick = { viewModel.setMode(OperatingMode.DELIVERY) },
                     modifier = Modifier.weight(1f),
                 )
             }
-            Text(
-                text = if (mode == OperatingMode.NORMAL) {
-                    stringResource(R.string.mode_normal_desc)
-                } else {
-                    stringResource(R.string.mode_delivery_desc)
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
@@ -189,13 +204,12 @@ private fun ServiceStatusCard(
                 )
             }
 
-            voiceStatus?.let {
-                Text(
-                    stringResource(R.string.home_status_last_command, it),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = contentColor,
-                )
-            }
+            Text(
+                voiceStatus?.let { stringResource(R.string.home_status_last_command, it) }
+                    ?: stringResource(R.string.home_status_no_command),
+                style = MaterialTheme.typography.bodySmall,
+                color = contentColor,
+            )
         }
     }
 }
@@ -241,11 +255,70 @@ private fun PermissionRow(title: String, description: String, granted: Boolean, 
 }
 
 @Composable
-private fun ModeChip(selected: Boolean, title: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(title, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
-        modifier = modifier,
-    )
+private fun PermissionChecklist(allGranted: Boolean, content: @Composable ColumnScope.() -> Unit) {
+    var expanded by remember(allGranted) { mutableStateOf(!allGranted) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded },
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 1.dp,
+        ) {
+            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (allGranted) Icons.Filled.CheckCircle else Icons.Filled.Warning,
+                    contentDescription = null,
+                    tint = if (allGranted) StatusGranted else StatusMissing,
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = stringResource(R.string.home_permissions_title) +
+                        (if (allGranted) " · ${stringResource(R.string.home_permissions_all_granted)}" else ""),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = null,
+                )
+            }
+        }
+        if (expanded) {
+            Column(
+                modifier = Modifier.animateContentSize(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                content = content,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ModeCard(
+    selected: Boolean,
+    icon: ImageVector,
+    title: String,
+    description: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val containerColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+    val contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        color = containerColor,
+        tonalElevation = if (selected) 0.dp else 1.dp,
+        border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(28.dp))
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = contentColor)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = contentColor)
+        }
+    }
 }
