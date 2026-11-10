@@ -1,7 +1,6 @@
 package com.dskion.touch.accessibility.command
 
 import android.accessibilityservice.AccessibilityService
-import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -9,7 +8,6 @@ import android.view.accessibility.AccessibilityNodeInfo
 import com.dskion.touch.core.rules.BaeminRules
 
 private const val LOG_TAG = "NewDispatch"
-private const val LAUNCH_RETRY_DELAY_MILLIS = 1500L
 private const val POLL_INTERVAL_MILLIS = 250L
 private const val MAX_POLL_ATTEMPTS = 6
 
@@ -36,7 +34,7 @@ class NewDispatchCommand(private val service: AccessibilityService) {
     }
 
     fun execute(desiredOn: Boolean, onResult: (String) -> Unit) {
-        findBaeminRoot { root ->
+        findBaeminRoot(service) { root ->
             if (root == null) {
                 Log.d(LOG_TAG, "배민 화면을 찾지 못함")
                 onResult("배민 화면을 찾지 못했어요")
@@ -85,37 +83,6 @@ class NewDispatchCommand(private val service: AccessibilityService) {
         }, POLL_INTERVAL_MILLIS)
     }
 
-    /** 활성 창 → service.windows → 배민 앱을 직접 띄워서 1.5초 뒤 1회 재시도, 순서로 찾는다. */
-    private fun findBaeminRoot(onFound: (AccessibilityNodeInfo?) -> Unit) {
-        val active = service.rootInActiveWindow
-        if (active?.packageName == BaeminRules.PACKAGE_NAME) {
-            onFound(active)
-            return
-        }
-
-        val fromWindows = service.windows.firstNotNullOfOrNull { window ->
-            window.root?.takeIf { it.packageName == BaeminRules.PACKAGE_NAME }
-        }
-        if (fromWindows != null) {
-            onFound(fromWindows)
-            return
-        }
-
-        val launchIntent = service.packageManager.getLaunchIntentForPackage(BaeminRules.PACKAGE_NAME)
-        if (launchIntent == null) {
-            onFound(null)
-            return
-        }
-        service.startActivity(launchIntent.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
-        Handler(Looper.getMainLooper()).postDelayed({
-            val retried = service.rootInActiveWindow?.takeIf { it.packageName == BaeminRules.PACKAGE_NAME }
-                ?: service.windows.firstNotNullOfOrNull { window ->
-                    window.root?.takeIf { it.packageName == BaeminRules.PACKAGE_NAME }
-                }
-            onFound(retried)
-        }, LAUNCH_RETRY_DELAY_MILLIS)
-    }
-
     /** 1순위: 텍스트가 정확히 "신규배차"인 라벨 노드에서 부모로 올라가며 첫 clickable.
      *  2순위: resId가 "신규배차_"로 시작하고 "버튼"으로 끝나는 clickable 노드. */
     private fun findToggleNode(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
@@ -141,17 +108,5 @@ class NewDispatchCommand(private val service: AccessibilityService) {
         }
         val turnedOffHint = findNodeMatching(root) { it.text?.toString()?.contains("신규배차를 켜고") == true }
         return turnedOffHint == null
-    }
-
-    private fun findNodeMatching(
-        node: AccessibilityNodeInfo,
-        predicate: (AccessibilityNodeInfo) -> Boolean,
-    ): AccessibilityNodeInfo? {
-        if (predicate(node)) return node
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            findNodeMatching(child, predicate)?.let { return it }
-        }
-        return null
     }
 }

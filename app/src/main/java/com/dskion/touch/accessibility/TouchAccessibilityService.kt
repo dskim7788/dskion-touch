@@ -17,6 +17,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.dskion.touch.R
+import com.dskion.touch.accessibility.command.AcceptDispatchCommand
 import com.dskion.touch.accessibility.command.NewDispatchCommand
 import com.dskion.touch.core.match.CommandMatcher
 import com.dskion.touch.core.model.ScreenSnapshot
@@ -44,6 +45,7 @@ class TouchAccessibilityService : AccessibilityService() {
     private var lastProcessedAtMillis = 0L
     private val matcher = CommandMatcher(BaeminRules.profiles, BaeminRules.rules)
     private val newDispatchCommand = NewDispatchCommand(this)
+    private val acceptDispatchCommand = AcceptDispatchCommand(this)
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private lateinit var ttsSpeaker: TtsSpeaker
 
@@ -109,14 +111,16 @@ class TouchAccessibilityService : AccessibilityService() {
     }
 
     private fun handleRecognizedText(text: String?) {
-        val dispatchIntent = text?.let(newDispatchCommand::parseIntent)
-        if (text != null && dispatchIntent != null) {
-            newDispatchCommand.execute(dispatchIntent) { resultMessage ->
-                ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_dispatch_result, text, resultMessage))
-                ttsSpeaker.speak(resultMessage)
-                vibrate()
+        if (text != null) {
+            val dispatchIntent = newDispatchCommand.parseIntent(text)
+            if (dispatchIntent != null) {
+                newDispatchCommand.execute(dispatchIntent) { resultMessage -> reportDispatchResult(text, resultMessage) }
+                return
             }
-            return
+            if (acceptDispatchCommand.parseIntent(text)) {
+                acceptDispatchCommand.execute { resultMessage -> reportDispatchResult(text, resultMessage) }
+                return
+            }
         }
 
         // The match attempt needs the target app in the foreground at the exact moment it runs -
@@ -129,6 +133,12 @@ class TouchAccessibilityService : AccessibilityService() {
                 else -> getString(R.string.console_voice_not_matched, text)
             },
         )
+        vibrate()
+    }
+
+    private fun reportDispatchResult(spokenText: String, resultMessage: String) {
+        ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_dispatch_result, spokenText, resultMessage))
+        ttsSpeaker.speak(resultMessage)
         vibrate()
     }
 
