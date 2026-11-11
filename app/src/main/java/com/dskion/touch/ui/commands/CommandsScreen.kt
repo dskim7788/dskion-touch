@@ -186,11 +186,13 @@ private fun CommandEntry(command: VoiceCommandInfo, viewModel: CommandsViewModel
                 visibleDefaults.forEach { phrase ->
                     PhraseChip(
                         phrase,
+                        removable = true,
                         onEdit = {
                             editingPhrase = phrase
                             editingIsDefault = true
                             editDraft = phrase
                         },
+                        onRemove = { command.editableCommand?.let { viewModel.removeDefaultPhrase(it, phrase) } },
                     )
                 }
                 extraPhrases.forEach { phrase ->

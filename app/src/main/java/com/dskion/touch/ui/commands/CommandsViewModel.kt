@@ -27,4 +27,8 @@ class CommandsViewModel(private val repository: CommandPhraseRepository) : ViewM
     fun editDefaultPhrase(command: EditableCommand, oldPhrase: String, newPhrase: String) {
         viewModelScope.launch { repository.editDefaultPhrase(command, oldPhrase, newPhrase) }
     }
+
+    fun removeDefaultPhrase(command: EditableCommand, phrase: String) {
+        viewModelScope.launch { repository.removeDefaultPhrase(command, phrase) }
+    }
 }

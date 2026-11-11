@@ -76,4 +76,12 @@ class CommandPhraseRepository(private val context: Context) {
             prefs[key(command)] = (prefs[key(command)] ?: emptySet()) + trimmed
         }
     }
+
+    /** Deletes a default phrase outright (no replacement) by hiding it, same mechanism as
+     * [editDefaultPhrase] without adding a new extra phrase. */
+    suspend fun removeDefaultPhrase(command: EditableCommand, phrase: String) {
+        context.commandPhrasesDataStore.edit { prefs ->
+            prefs[hiddenDefaultsKey(command)] = (prefs[hiddenDefaultsKey(command)] ?: emptySet()) + phrase
+        }
+    }
 }
