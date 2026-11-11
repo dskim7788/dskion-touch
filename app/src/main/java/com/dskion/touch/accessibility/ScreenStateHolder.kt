@@ -19,6 +19,12 @@ object ScreenStateHolder {
     private val _voiceStatus = MutableStateFlow<String?>(null)
     val voiceStatus: StateFlow<String?> = _voiceStatus
 
+    /** True from the moment a voice command starts (countdown/listening) until it finishes
+     * acting on the result - drives the floating overlay button's color so it's usable without
+     * looking at the Console tab. */
+    private val _isListening = MutableStateFlow(false)
+    val isListening: StateFlow<Boolean> = _isListening
+
     fun setServiceRunning(running: Boolean) {
         _serviceRunning.value = running
     }
@@ -29,5 +35,9 @@ object ScreenStateHolder {
 
     fun setVoiceStatus(status: String?) {
         _voiceStatus.value = status
+    }
+
+    fun setListening(listening: Boolean) {
+        _isListening.value = listening
     }
 }

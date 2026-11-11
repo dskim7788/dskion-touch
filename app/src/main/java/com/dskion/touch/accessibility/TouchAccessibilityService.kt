@@ -25,6 +25,7 @@ import com.dskion.touch.core.model.ScreenSnapshot
 import com.dskion.touch.core.rules.BaeminRules
 import com.dskion.touch.data.CommandPhraseRepository
 import com.dskion.touch.data.EditableCommand
+import com.dskion.touch.overlay.VoiceOverlayController
 import com.dskion.touch.voice.TtsSpeaker
 import com.dskion.touch.voice.VoiceRecognizer
 import kotlinx.coroutines.CoroutineScope
@@ -52,6 +53,9 @@ class TouchAccessibilityService : AccessibilityService() {
     private val respondDispatchCommand = RespondDispatchCommand(this)
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private lateinit var ttsSpeaker: TtsSpeaker
+    private val overlayController by lazy {
+        VoiceOverlayController(this, serviceScope, onTap = ::startVoiceCommand)
+    }
 
     /** The device's home/launcher package — switching apps via home or the recents overview
      * surfaces this package's window, which should never overwrite a captured target-app snapshot. */
@@ -65,6 +69,7 @@ class TouchAccessibilityService : AccessibilityService() {
         instance = this
         ttsSpeaker = TtsSpeaker(this)
         startAsForegroundService()
+        overlayController.show()
         ScreenStateHolder.setServiceRunning(true)
     }
 
@@ -87,8 +92,12 @@ class TouchAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Counts down (giving the user time to switch to the target app), listens for one spoken
-     * command, and tries to act on it. Publishes progress to [ScreenStateHolder.voiceStatus].
+     * Counts down briefly (just long enough that the recognizer doesn't pick up the tap/vibration
+     * that triggered it - the floating overlay button means the user is typically already in the
+     * target app when this starts, unlike the Console tab's test button which needed more time to
+     * switch apps), listens for one spoken command, and tries to act on it. Publishes progress to
+     * [ScreenStateHolder.voiceStatus] and [ScreenStateHolder.isListening] (the latter drives the
+     * overlay button's color).
      */
     fun startVoiceCommand() {
         val micGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
@@ -97,7 +106,10 @@ class TouchAccessibilityService : AccessibilityService() {
             ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_mic_required))
             return
         }
+        if (ScreenStateHolder.isListening.value) return
 
+        ScreenStateHolder.setListening(true)
+        vibrate(LISTEN_START_VIBRATION_MILLIS)
         serviceScope.launch {
             for (remaining in VOICE_COMMAND_COUNTDOWN_SECONDS downTo 1) {
                 ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_countdown, remaining))
@@ -105,9 +117,18 @@ class TouchAccessibilityService : AccessibilityService() {
             }
             ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_listening))
             VoiceRecognizer(this@TouchAccessibilityService).startListening(
-                onResult = { text -> serviceScope.launch { handleRecognizedText(text) } },
+                onResult = { text ->
+                    serviceScope.launch {
+                        try {
+                            handleRecognizedText(text)
+                        } finally {
+                            ScreenStateHolder.setListening(false)
+                        }
+                    }
+                },
                 onError = { message ->
                     ScreenStateHolder.setVoiceStatus(message)
+                    ScreenStateHolder.setListening(false)
                     vibrate()
                 },
             )
@@ -169,14 +190,14 @@ class TouchAccessibilityService : AccessibilityService() {
         vibrate()
     }
 
-    private fun vibrate() {
+    private fun vibrate(durationMillis: Long = 150L) {
         val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             getSystemService(VibratorManager::class.java)?.defaultVibrator
         } else {
             @Suppress("DEPRECATION")
             getSystemService(Vibrator::class.java)
         } ?: return
-        vibrator.vibrate(VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE))
+        vibrator.vibrate(VibrationEffect.createOneShot(durationMillis, VibrationEffect.DEFAULT_AMPLITUDE))
     }
 
     /**
@@ -243,6 +264,7 @@ class TouchAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        overlayController.hide()
         serviceScope.cancel()
         if (::ttsSpeaker.isInitialized) ttsSpeaker.shutdown()
         instance = null
@@ -251,7 +273,8 @@ class TouchAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val DEBOUNCE_MILLIS = 300L
-        private const val VOICE_COMMAND_COUNTDOWN_SECONDS = 3
+        private const val VOICE_COMMAND_COUNTDOWN_SECONDS = 1
+        private const val LISTEN_START_VIBRATION_MILLIS = 50L
         private const val NOTIFICATION_CHANNEL_ID = "touch_service"
         private const val NOTIFICATION_ID = 1
 
