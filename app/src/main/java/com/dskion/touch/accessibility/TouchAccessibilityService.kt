@@ -25,6 +25,8 @@ import com.dskion.touch.core.model.ScreenSnapshot
 import com.dskion.touch.core.rules.BaeminRules
 import com.dskion.touch.data.CommandPhraseRepository
 import com.dskion.touch.data.EditableCommand
+import com.dskion.touch.data.ManagerPersona
+import com.dskion.touch.data.ManagerRepository
 import com.dskion.touch.data.ModeRepository
 import com.dskion.touch.data.MonitoredAppsRepository
 import com.dskion.touch.data.OperatingMode
@@ -58,6 +60,8 @@ class TouchAccessibilityService : AccessibilityService() {
     private val phraseRepository = CommandPhraseRepository(this)
     private val modeRepository = ModeRepository(this)
     private val monitoredAppsRepository = MonitoredAppsRepository(this)
+    private val managerRepository = ManagerRepository(this)
+    private var managerVoiceChatEnabled = true
     private val newDispatchCommand = NewDispatchCommand(this)
     private val acceptDispatchCommand = AcceptDispatchCommand(this)
     private val respondDispatchCommand = RespondDispatchCommand(this)
@@ -107,6 +111,14 @@ class TouchAccessibilityService : AccessibilityService() {
         }
         serviceScope.launch {
             monitoredAppsRepository.monitoredPackages.collect { packages -> applyPackageFilter(packages) }
+        }
+        serviceScope.launch {
+            managerRepository.persona.collect { persona ->
+                ttsSpeaker.setPitch(if (persona == ManagerPersona.MALE) MALE_PITCH else FEMALE_PITCH)
+            }
+        }
+        serviceScope.launch {
+            managerRepository.voiceChatEnabled.collect { enabled -> managerVoiceChatEnabled = enabled }
         }
     }
 
@@ -260,14 +272,33 @@ class TouchAccessibilityService : AccessibilityService() {
     private suspend fun handleRecognizedText(text: String?, silent: Boolean = false) {
         if (text != null) {
             val normalized = text.replace(" ", "")
+
+            // "매니저" 호출 - 비서 역할. 세션 동안의 수락/거절 집계를 읽어주거나(물어보면),
+            // 아니면 그냥 가벼운 인사로 응답한다. 로컬 스크립트 기반이라 외부 API/네트워크는
+            // 쓰지 않는다 - 진짜 자유 대화가 아니라 정해진 대사 중 하나를 고르는 수준.
+            if (normalized.contains("매니저") && managerVoiceChatEnabled) {
+                val asksForStats = listOf("몇건", "오늘", "수락", "거절", "확인", "리뷰").any(normalized::contains)
+                val reply = if (asksForStats) RideStatsHolder.summary() else ManagerLines.forGreeting()
+                ScreenStateHolder.setVoiceStatus(reply)
+                ttsSpeaker.speak(reply)
+                vibrate()
+                return
+            }
+
             // User-added synonym phrases (명령어 탭에서 편집) always win first, on top of each
             // command's own hardcoded keyword logic below.
             val customHandlers = listOf(
-                EditableCommand.NEW_DISPATCH_ON to { newDispatchCommand.execute(true) { m -> reportDispatchResult(text, m) } },
-                EditableCommand.NEW_DISPATCH_OFF to { newDispatchCommand.execute(false) { m -> reportDispatchResult(text, m) } },
-                EditableCommand.ACCEPT_DISPATCH to { acceptDispatchCommand.execute { m -> reportDispatchResult(text, m) } },
-                EditableCommand.RESPOND_ACCEPT to { respondDispatchCommand.execute(true) { m -> reportDispatchResult(text, m) } },
-                EditableCommand.RESPOND_REJECT to { respondDispatchCommand.execute(false) { m -> reportDispatchResult(text, m) } },
+                EditableCommand.NEW_DISPATCH_ON to {
+                    newDispatchCommand.execute(true) { m -> reportDispatchResult(text, m, ManagerLines.forToggle()) }
+                },
+                EditableCommand.NEW_DISPATCH_OFF to {
+                    newDispatchCommand.execute(false) { m -> reportDispatchResult(text, m, ManagerLines.forToggle()) }
+                },
+                EditableCommand.ACCEPT_DISPATCH to {
+                    acceptDispatchCommand.execute { m -> reportDispatchResult(text, m) }
+                },
+                EditableCommand.RESPOND_ACCEPT to { respondAndReport(accept = true, text = text) },
+                EditableCommand.RESPOND_REJECT to { respondAndReport(accept = false, text = text) },
             )
             for ((command, action) in customHandlers) {
                 val extra = phraseRepository.extraPhrasesSnapshot(command)
@@ -279,7 +310,9 @@ class TouchAccessibilityService : AccessibilityService() {
 
             val dispatchIntent = newDispatchCommand.parseIntent(text)
             if (dispatchIntent != null) {
-                newDispatchCommand.execute(dispatchIntent) { resultMessage -> reportDispatchResult(text, resultMessage) }
+                newDispatchCommand.execute(dispatchIntent) { resultMessage ->
+                    reportDispatchResult(text, resultMessage, ManagerLines.forToggle())
+                }
                 return
             }
             if (acceptDispatchCommand.parseIntent(text)) {
@@ -288,7 +321,7 @@ class TouchAccessibilityService : AccessibilityService() {
             }
             val respondIntent = respondDispatchCommand.parseIntent(text)
             if (respondIntent != null) {
-                respondDispatchCommand.execute(respondIntent) { resultMessage -> reportDispatchResult(text, resultMessage) }
+                respondAndReport(accept = respondIntent, text = text)
                 return
             }
         }
@@ -298,6 +331,10 @@ class TouchAccessibilityService : AccessibilityService() {
         // since the user has no overlay to watch yet.
         if (text != null && tryPerformCommand(text)) {
             ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_matched, text))
+            if (text.replace(" ", "").contains("시작")) {
+                RideStatsHolder.recordStartWork()
+                if (managerVoiceChatEnabled) ttsSpeaker.speak(ManagerLines.forStartWork())
+            }
             vibrate()
         } else if (!silent) {
             ScreenStateHolder.setVoiceStatus(
@@ -311,9 +348,22 @@ class TouchAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun reportDispatchResult(spokenText: String, resultMessage: String) {
-        ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_dispatch_result, spokenText, resultMessage))
-        ttsSpeaker.speak(resultMessage)
+    /** 수락/거절은 실제로 "일" 개수를 세는 두 경로뿐이라, 여기서 [RideStatsHolder]에 기록하고
+     * 매니저가 켜져 있으면 칭찬/위로 한마디를 결과 뒤에 붙인다. */
+    private fun respondAndReport(accept: Boolean, text: String) {
+        if (accept) RideStatsHolder.recordAccept() else RideStatsHolder.recordReject()
+        val managerLine = if (managerVoiceChatEnabled) {
+            if (accept) ManagerLines.forAccept() else ManagerLines.forReject()
+        } else {
+            null
+        }
+        respondDispatchCommand.execute(accept) { resultMessage -> reportDispatchResult(text, resultMessage, managerLine) }
+    }
+
+    private fun reportDispatchResult(spokenText: String, resultMessage: String, managerLine: String? = null) {
+        val fullMessage = if (managerLine != null) "$resultMessage $managerLine" else resultMessage
+        ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_dispatch_result, spokenText, fullMessage))
+        ttsSpeaker.speak(fullMessage)
         vibrate()
     }
 
@@ -411,6 +461,8 @@ class TouchAccessibilityService : AccessibilityService() {
         private const val LISTEN_START_VIBRATION_MILLIS = 50L
         private const val MIC_PERMISSION_RECHECK_MILLIS = 3000L
         private const val CONTINUOUS_LISTEN_GAP_MILLIS = 400L
+        private const val MALE_PITCH = 0.85f
+        private const val FEMALE_PITCH = 1.15f
         private const val NOTIFICATION_CHANNEL_ID = "touch_service"
         private const val NOTIFICATION_ID = 1
 

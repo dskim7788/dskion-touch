@@ -23,6 +23,13 @@ class TtsSpeaker(context: Context) {
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "dskion_touch_tts")
     }
 
+    /** Differentiates the 매니저 personas without depending on which ko-KR voices happen to be
+     * installed on the device (varies a lot by manufacturer/TTS engine) - a lower/higher pitch on
+     * the same voice is a simple, reliably-available way to make the two personas sound distinct. */
+    fun setPitch(pitch: Float) {
+        tts?.setPitch(pitch)
+    }
+
     fun shutdown() {
         tts?.stop()
         tts?.shutdown()

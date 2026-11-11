@@ -87,6 +87,14 @@
     <string name="header_settings_action">설정</string>
     <string name="header_search_action">검색</string>
     <string name="header_help_action">도움말</string>
+    <string name="header_back_action">뒤로</string>
+
+    <string name="settings_title">설정</string>
+    <string name="settings_manager_title">매니저 선택</string>
+    <string name="settings_manager_desc">운행 중 음성으로 칭찬·안내를 해주는 매니저 캐릭터예요</string>
+    <string name="settings_voice_chat_title">음성 채팅</string>
+    <string name="settings_voice_chat_desc">배차 수락/거절 등 실행 결과 뒤에 매니저의 칭찬·격려 한마디를 붙여서 말해줘요. "매니저"라고 부르면 오늘 수락/거절 건수도 알려줘요</string>
+    <string name="settings_voice_chat_note">※ 외부 인터넷 연결 없이 기기 안에서만 동작하는 정해진 대사 기반이에요 - 자유 대화형 AI는 아니에요</string>
 
     <string name="monitored_apps_title">모니터링 허용 앱</string>
     <string name="monitored_apps_desc">여기 없는 앱(은행·증권 앱 등)의 화면은 전혀 읽지 않아요</string>

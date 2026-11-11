@@ -1,10 +1,8 @@
 package com.dskion.touch.ui.navigation
 
-import android.content.Intent
-import android.net.Uri
-import android.provider.Settings
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
@@ -13,7 +11,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -24,11 +21,12 @@ import com.dskion.touch.R
 private val HeaderHeight = 64.dp
 private val HeaderIconSize = 24.dp
 
-/** Common header for all three tabs - same height/background/alignment everywhere. Home shows
+/** Common header for all four screens - same height/background/alignment everywhere. Home shows
  * the brand wordmark + notification/settings actions; Commands/Console show a plain screen
- * title + a single screen-appropriate action icon, per the redesign spec. */
+ * title + a single screen-appropriate action icon; 설정 (pushed from Home's gear icon, not a
+ * bottom-nav tab) shows a back arrow + title instead. */
 @Composable
-fun TouchTopBar(route: String?) {
+fun TouchTopBar(route: String?, onSettingsClick: () -> Unit, onBack: () -> Unit) {
     Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
         Row(
             modifier = Modifier
@@ -51,7 +49,8 @@ fun TouchTopBar(route: String?) {
                     actionDescription = stringResource(R.string.header_help_action),
                     onAction = {},
                 )
-                else -> HomeHeader()
+                ROUTE_SETTINGS -> BackTitleHeader(title = stringResource(R.string.settings_title), onBack = onBack)
+                else -> HomeHeader(onSettingsClick = onSettingsClick)
             }
         }
     }
@@ -76,8 +75,24 @@ private fun RowScope.ScreenTitleHeader(
 }
 
 @Composable
-private fun RowScope.HomeHeader() {
-    val context = LocalContext.current
+private fun RowScope.BackTitleHeader(title: String, onBack: () -> Unit) {
+    IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
+        Icon(
+            Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = stringResource(R.string.header_back_action),
+            modifier = Modifier.size(HeaderIconSize),
+        )
+    }
+    Text(
+        title,
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.weight(1f).padding(start = 8.dp),
+    )
+}
+
+@Composable
+private fun RowScope.HomeHeader(onSettingsClick: () -> Unit) {
     Row(
         modifier = Modifier.weight(1f),
         verticalAlignment = Alignment.Bottom,
@@ -104,15 +119,7 @@ private fun RowScope.HomeHeader() {
             modifier = Modifier.size(HeaderIconSize),
         )
     }
-    IconButton(
-        onClick = {
-            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.fromParts("package", context.packageName, null)
-            }
-            context.startActivity(intent)
-        },
-        modifier = Modifier.size(48.dp),
-    ) {
+    IconButton(onClick = onSettingsClick, modifier = Modifier.size(48.dp)) {
         Icon(
             Icons.Filled.Settings,
             contentDescription = stringResource(R.string.header_settings_action),
