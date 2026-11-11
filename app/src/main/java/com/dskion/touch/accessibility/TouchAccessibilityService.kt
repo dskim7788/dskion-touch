@@ -74,6 +74,11 @@ class TouchAccessibilityService : AccessibilityService() {
     private var currentForegroundPackage: String? = null
     private var continuousListeningJob: Job? = null
 
+    /** 플로팅 버튼은 일반 모드의 수동 트리거일 뿐 - 배달 모드는 손 안 대고 계속 듣기 때문에
+     * 버튼이 필요 없고, 다른 앱/홈 화면 위에 항상 떠 있는 게 오히려 거슬린다. 모드가 바뀌거나
+     * 사용자가 홈 화면에서 직접 끄면 [updateOverlayVisibility]가 보이고/숨긴다. */
+    private var overlayPrefEnabled = true
+
     /** The device's home/launcher package — switching apps via home or the recents overview
      * surfaces this package's window, which should never overwrite a captured target-app snapshot. */
     private val homePackageName: String? by lazy {
@@ -86,16 +91,32 @@ class TouchAccessibilityService : AccessibilityService() {
         instance = this
         ttsSpeaker = TtsSpeaker(this)
         startAsForegroundService()
-        overlayController.show()
         ScreenStateHolder.setServiceRunning(true)
         serviceScope.launch {
             modeRepository.mode.collect { mode ->
                 currentMode = mode
                 updateContinuousListening()
+                updateOverlayVisibility()
+            }
+        }
+        serviceScope.launch {
+            modeRepository.overlayEnabled.collect { enabled ->
+                overlayPrefEnabled = enabled
+                updateOverlayVisibility()
             }
         }
         serviceScope.launch {
             monitoredAppsRepository.monitoredPackages.collect { packages -> applyPackageFilter(packages) }
+        }
+    }
+
+    /** 일반 모드 + 사용자가 끄지 않았을 때만 플로팅 버튼을 띄운다. 배달 모드는 손 안 대고 계속
+     * 듣기 때문에 버튼이 무의미하고, 다른 앱/홈 화면 위에 계속 떠 있으면 방해만 된다. */
+    private fun updateOverlayVisibility() {
+        if (overlayPrefEnabled && currentMode == OperatingMode.NORMAL) {
+            overlayController.show()
+        } else {
+            overlayController.hide()
         }
     }
 

@@ -41,6 +41,9 @@ class HomeViewModel(
     val monitoredPackages: StateFlow<Set<String>> = monitoredAppsRepository.monitoredPackages
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MonitoredAppsRepository.DEFAULT_PACKAGES)
 
+    val overlayEnabled: StateFlow<Boolean> = modeRepository.overlayEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     val serviceRunning: StateFlow<Boolean> = ScreenStateHolder.serviceRunning
     val latestSnapshot: StateFlow<ScreenSnapshot?> = ScreenStateHolder.latestSnapshot
     val voiceStatus: StateFlow<String?> = ScreenStateHolder.voiceStatus
@@ -58,6 +61,10 @@ class HomeViewModel(
 
     fun setMode(mode: OperatingMode) {
         viewModelScope.launch { modeRepository.setMode(mode) }
+    }
+
+    fun setOverlayEnabled(enabled: Boolean) {
+        viewModelScope.launch { modeRepository.setOverlayEnabled(enabled) }
     }
 
     fun addMonitoredApp(packageName: String) {

@@ -28,6 +28,9 @@
     <string name="mode_delivery">배달 모드</string>
     <string name="mode_delivery_desc">배민/쿠팡 화면에서 터치 없이 계속 음성 인식</string>
 
+    <string name="overlay_toggle_title">플로팅 버튼 표시</string>
+    <string name="overlay_toggle_desc">일반 모드에서만 떠요 - 배달 모드는 손 안 대고 계속 듣기 때문에 자동으로 숨겨요</string>
+
     <string name="service_status_title">서비스 상태</string>
     <string name="service_status_on">실행 중</string>
     <string name="service_status_off">꺼짐</string>

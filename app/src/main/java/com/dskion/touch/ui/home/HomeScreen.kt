@@ -60,6 +60,7 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val mode by viewModel.mode.collectAsState()
+    val overlayEnabled by viewModel.overlayEnabled.collectAsState()
     val monitoredPackages by viewModel.monitoredPackages.collectAsState()
     val serviceRunning by viewModel.serviceRunning.collectAsState()
     val latestSnapshot by viewModel.latestSnapshot.collectAsState()
@@ -166,6 +167,11 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
                     modifier = Modifier.weight(1f),
                 )
             }
+
+            OverlayToggleRow(
+                enabled = overlayEnabled,
+                onToggle = viewModel::setOverlayEnabled,
+            )
 
             Spacer(Modifier.height(8.dp))
             MonitoredAppsSection(
@@ -274,6 +280,31 @@ private fun PermissionRow(title: String, description: String, granted: Boolean, 
             } else {
                 Button(onClick = onAction) { Text(stringResource(R.string.permission_action_open_settings)) }
             }
+        }
+    }
+}
+
+/** The floating mic button is only useful for 일반 모드's manual tap-to-talk - 배달 모드 already
+ * hides it automatically since hands-free listening makes it redundant there, but the user can
+ * also turn it off outright if they don't want it floating over other apps at all. */
+@Composable
+private fun OverlayToggleRow(enabled: Boolean, onToggle: (Boolean) -> Unit) {
+    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.overlay_toggle_title), style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    stringResource(R.string.overlay_toggle_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(checked = enabled, onCheckedChange = onToggle)
         }
     }
 }
