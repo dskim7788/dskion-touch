@@ -25,15 +25,22 @@ import com.dskion.touch.core.model.ScreenSnapshot
 import com.dskion.touch.core.rules.BaeminRules
 import com.dskion.touch.data.CommandPhraseRepository
 import com.dskion.touch.data.EditableCommand
+import com.dskion.touch.data.ModeRepository
+import com.dskion.touch.data.OperatingMode
 import com.dskion.touch.overlay.VoiceOverlayController
 import com.dskion.touch.voice.TtsSpeaker
 import com.dskion.touch.voice.VoiceRecognizer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 /**
  * Reads the foreground window's node tree and publishes it to [ScreenStateHolder] for the
@@ -48,6 +55,7 @@ class TouchAccessibilityService : AccessibilityService() {
 
     private var lastProcessedAtMillis = 0L
     private val phraseRepository = CommandPhraseRepository(this)
+    private val modeRepository = ModeRepository(this)
     private val newDispatchCommand = NewDispatchCommand(this)
     private val acceptDispatchCommand = AcceptDispatchCommand(this)
     private val respondDispatchCommand = RespondDispatchCommand(this)
@@ -56,6 +64,13 @@ class TouchAccessibilityService : AccessibilityService() {
     private val overlayController by lazy {
         VoiceOverlayController(this, serviceScope, onTap = ::startVoiceCommand)
     }
+
+    /** 배달 모드일 때 손을 떼지 않고도 쓸 수 있도록, 배민/쿠팡이츠가 화면에 떠 있는 동안
+     * 계속 듣고 바로바로 명령을 처리하는 루프 - [currentMode]/[currentForegroundPackage]가
+     * 바뀔 때마다 [updateContinuousListening]이 켜고 끈다. */
+    private var currentMode: OperatingMode = OperatingMode.NORMAL
+    private var currentForegroundPackage: String? = null
+    private var continuousListeningJob: Job? = null
 
     /** The device's home/launcher package — switching apps via home or the recents overview
      * surfaces this package's window, which should never overwrite a captured target-app snapshot. */
@@ -71,6 +86,12 @@ class TouchAccessibilityService : AccessibilityService() {
         startAsForegroundService()
         overlayController.show()
         ScreenStateHolder.setServiceRunning(true)
+        serviceScope.launch {
+            modeRepository.mode.collect { mode ->
+                currentMode = mode
+                updateContinuousListening()
+            }
+        }
     }
 
     private fun startAsForegroundService() {
@@ -135,7 +156,69 @@ class TouchAccessibilityService : AccessibilityService() {
         }
     }
 
-    private suspend fun handleRecognizedText(text: String?) {
+    /** Starts/stops the hands-free loop based on the two things that decide whether it should be
+     * running right now: 배달 모드 selected, and 배민/쿠팡이츠 actually in the foreground. Call
+     * whenever either changes - it's a no-op if the desired state already matches. */
+    private fun updateContinuousListening() {
+        val shouldListen = currentMode == OperatingMode.DELIVERY && currentForegroundPackage in TARGET_PACKAGES
+        if (shouldListen) startContinuousListening() else stopContinuousListening()
+    }
+
+    /**
+     * The actual hands-free loop: listen, act on whatever was said (if anything), briefly pause,
+     * repeat - for as long as [updateContinuousListening] keeps it alive. No countdown and no
+     * vibration/status noise for silence or unmatched speech (that would be constant and
+     * exhausting over a whole delivery) - only a real command execution gives feedback, same as
+     * [handleRecognizedText]'s existing vibrate/TTS calls for matches and dispatch actions.
+     */
+    private fun startContinuousListening() {
+        if (continuousListeningJob?.isActive == true) return
+        continuousListeningJob = serviceScope.launch {
+            while (isActive) {
+                try {
+                    val micGranted = ContextCompat.checkSelfPermission(this@TouchAccessibilityService, Manifest.permission.RECORD_AUDIO) ==
+                        PackageManager.PERMISSION_GRANTED
+                    if (!micGranted) {
+                        ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_mic_required))
+                        delay(MIC_PERMISSION_RECHECK_MILLIS)
+                        continue
+                    }
+
+                    ScreenStateHolder.setListening(true)
+                    val text = awaitOneRecognitionResult()
+                    ScreenStateHolder.setListening(false)
+                    handleRecognizedText(text, silent = true)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Keep the shift-long loop alive through an unexpected failure (a malformed
+                    // node tree, a recognizer hiccup, ...) instead of silently going dead until the
+                    // next app-switch/mode-change happens to restart it.
+                    ScreenStateHolder.setListening(false)
+                }
+                delay(CONTINUOUS_LISTEN_GAP_MILLIS)
+            }
+        }
+    }
+
+    private fun stopContinuousListening() {
+        continuousListeningJob?.cancel()
+        continuousListeningJob = null
+        if (ScreenStateHolder.isListening.value) ScreenStateHolder.setListening(false)
+    }
+
+    private suspend fun awaitOneRecognitionResult(): String? = suspendCancellableCoroutine { continuation ->
+        VoiceRecognizer(this).startListening(
+            onResult = { text -> if (continuation.isActive) continuation.resume(text) },
+            onError = { if (continuation.isActive) continuation.resume(null) },
+        )
+    }
+
+    /** [silent] suppresses the vibrate+status update for "didn't understand"/"no speech" - used by
+     * the continuous hands-free loop, where that would otherwise buzz constantly over a whole
+     * delivery. A real command (matched here, or one of the dispatch actions above) always gives
+     * feedback either way, silent or not. */
+    private suspend fun handleRecognizedText(text: String?, silent: Boolean = false) {
         if (text != null) {
             val normalized = text.replace(" ", "")
             // User-added synonym phrases (명령어 탭에서 편집) always win first, on top of each
@@ -174,14 +257,19 @@ class TouchAccessibilityService : AccessibilityService() {
         // The match attempt needs the target app in the foreground at the exact moment it runs -
         // a visible/audible "done, safe to switch back" cue matters more than any screen text,
         // since the user has no overlay to watch yet.
-        ScreenStateHolder.setVoiceStatus(
-            when {
-                text == null -> getString(R.string.console_voice_no_speech)
-                tryPerformCommand(text) -> getString(R.string.console_voice_matched, text)
-                else -> getString(R.string.console_voice_not_matched, text)
-            },
-        )
-        vibrate()
+        if (text != null && tryPerformCommand(text)) {
+            ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_matched, text))
+            vibrate()
+        } else if (!silent) {
+            ScreenStateHolder.setVoiceStatus(
+                if (text == null) {
+                    getString(R.string.console_voice_no_speech)
+                } else {
+                    getString(R.string.console_voice_not_matched, text)
+                },
+            )
+            vibrate()
+        }
     }
 
     private fun reportDispatchResult(spokenText: String, resultMessage: String) {
@@ -248,6 +336,12 @@ class TouchAccessibilityService : AccessibilityService() {
 
         val root = rootInActiveWindow ?: return
         val packageName = root.packageName?.toString() ?: return
+
+        if (packageName != currentForegroundPackage) {
+            currentForegroundPackage = packageName
+            updateContinuousListening()
+        }
+
         // Skip our own app and the launcher (home screen / recents overview) so switching
         // between apps doesn't overwrite the captured target-app snapshot with a transit screen.
         if (packageName == applicationContext.packageName) return
@@ -264,6 +358,7 @@ class TouchAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        stopContinuousListening()
         overlayController.hide()
         serviceScope.cancel()
         if (::ttsSpeaker.isInitialized) ttsSpeaker.shutdown()
@@ -275,8 +370,15 @@ class TouchAccessibilityService : AccessibilityService() {
         private const val DEBOUNCE_MILLIS = 300L
         private const val VOICE_COMMAND_COUNTDOWN_SECONDS = 1
         private const val LISTEN_START_VIBRATION_MILLIS = 50L
+        private const val MIC_PERMISSION_RECHECK_MILLIS = 3000L
+        private const val CONTINUOUS_LISTEN_GAP_MILLIS = 400L
         private const val NOTIFICATION_CHANNEL_ID = "touch_service"
         private const val NOTIFICATION_ID = 1
+
+        /** 배달 모드에서 손 안 대고 계속 듣기가 켜지는 대상 앱. 쿠팡이츠는 아직 명령어가
+         * 연결돼 있지 않지만(배민만 구현됨) 포함해 둬도 무해함 - 매칭되는 게 없으면 그냥
+         * 조용히 지나간다 ([handleRecognizedText]의 silent=true). */
+        private val TARGET_PACKAGES = setOf(BaeminRules.PACKAGE_NAME, "com.coupang.mobile.eats.courier")
 
         var instance: TouchAccessibilityService? = null
             private set
