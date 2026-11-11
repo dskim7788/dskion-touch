@@ -1,6 +1,8 @@
 package com.dskion.touch.ui.home
 
 import android.Manifest
+import android.content.Context
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
@@ -8,15 +10,20 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
@@ -45,12 +52,15 @@ import com.dskion.touch.ui.theme.StatusMissing
 import com.dskion.touch.util.accessibilitySettingsIntent
 import com.dskion.touch.util.batteryOptimizationIntent
 import com.dskion.touch.util.overlaySettingsIntent
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewModel(factory = factory)) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val mode by viewModel.mode.collectAsState()
+    val monitoredPackages by viewModel.monitoredPackages.collectAsState()
     val serviceRunning by viewModel.serviceRunning.collectAsState()
     val latestSnapshot by viewModel.latestSnapshot.collectAsState()
     val voiceStatus by viewModel.voiceStatus.collectAsState()
@@ -156,6 +166,13 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
                     modifier = Modifier.weight(1f),
                 )
             }
+
+            Spacer(Modifier.height(8.dp))
+            MonitoredAppsSection(
+                monitoredPackages = monitoredPackages,
+                onAdd = viewModel::addMonitoredApp,
+                onRemove = viewModel::removeMonitoredApp,
+            )
     }
 }
 
@@ -301,6 +318,151 @@ private fun PermissionChecklist(allGranted: Boolean, content: @Composable Column
             )
         }
     }
+}
+
+/**
+ * Which apps [com.dskion.touch.accessibility.TouchAccessibilityService] is allowed to read screen
+ * content from at all - apps not in this list never generate an accessibility event for the
+ * service, so their on-screen text (a banking app's balance, a password field, an OTP, ...) never
+ * reaches this app, not even transiently. Defaults to just 배민커넥트/쿠팡이츠.
+ */
+@Composable
+private fun MonitoredAppsSection(
+    monitoredPackages: Set<String>,
+    onAdd: (String) -> Unit,
+    onRemove: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    var showAddDialog by remember { mutableStateOf(false) }
+
+    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(Icons.Filled.Shield, contentDescription = null, tint = StatusGranted)
+                Column {
+                    Text(stringResource(R.string.monitored_apps_title), style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        stringResource(R.string.monitored_apps_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            monitoredPackages.sorted().forEach { packageName ->
+                MonitoredAppRow(label = appLabel(context, packageName), packageName = packageName, onRemove = { onRemove(packageName) })
+            }
+
+            OutlinedButton(onClick = { showAddDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.monitored_apps_add_action))
+            }
+        }
+    }
+
+    if (showAddDialog) {
+        AddMonitoredAppDialog(
+            alreadyMonitored = monitoredPackages,
+            onDismiss = { showAddDialog = false },
+            onPick = { packageName ->
+                onAdd(packageName)
+                showAddDialog = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun MonitoredAppRow(label: String, packageName: String, onRemove: () -> Unit) {
+    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                Text(packageName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(
+                Icons.Filled.Close,
+                contentDescription = stringResource(R.string.monitored_apps_remove_action),
+                modifier = Modifier
+                    .size(20.dp)
+                    .clickable(onClick = onRemove),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AddMonitoredAppDialog(
+    alreadyMonitored: Set<String>,
+    onDismiss: () -> Unit,
+    onPick: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    var candidates by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        val apps = withContext(Dispatchers.Default) { installedLaunchableApps(context) }
+        candidates = apps.filterNot { (packageName, _) -> packageName == context.packageName || packageName in alreadyMonitored }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        title = { Text(stringResource(R.string.monitored_apps_add_title)) },
+        text = {
+            if (candidates.isEmpty()) {
+                Text(
+                    stringResource(R.string.monitored_apps_add_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
+                    items(candidates, key = { it.first }) { (packageName, label) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onPick(packageName) }
+                                .padding(vertical = 12.dp),
+                        ) {
+                            Column {
+                                Text(label, style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    packageName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.commands_edit_phrase_cancel)) }
+        },
+    )
+}
+
+private fun appLabel(context: Context, packageName: String): String = runCatching {
+    val pm = context.packageManager
+    pm.getApplicationInfo(packageName, 0).loadLabel(pm).toString()
+}.getOrDefault(packageName)
+
+private fun installedLaunchableApps(context: Context): List<Pair<String, String>> {
+    val pm = context.packageManager
+    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+    return pm.queryIntentActivities(intent, 0)
+        .map { it.activityInfo.packageName to it.loadLabel(pm).toString() }
+        .distinctBy { it.first }
+        .sortedBy { it.second }
 }
 
 @Composable

@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.dskion.touch.accessibility.ScreenStateHolder
 import com.dskion.touch.core.model.ScreenSnapshot
 import com.dskion.touch.data.ModeRepository
+import com.dskion.touch.data.MonitoredAppsRepository
 import com.dskion.touch.data.OperatingMode
 import com.dskion.touch.util.isAccessibilityServiceEnabled
 import com.dskion.touch.util.isBatteryOptimizationIgnored
@@ -26,13 +27,19 @@ data class PermissionState(
     val batteryIgnored: Boolean = false,
 )
 
-class HomeViewModel(private val modeRepository: ModeRepository) : ViewModel() {
+class HomeViewModel(
+    private val modeRepository: ModeRepository,
+    private val monitoredAppsRepository: MonitoredAppsRepository,
+) : ViewModel() {
 
     var permissionState by mutableStateOf(PermissionState())
         private set
 
     val mode: StateFlow<OperatingMode> = modeRepository.mode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), OperatingMode.NORMAL)
+
+    val monitoredPackages: StateFlow<Set<String>> = monitoredAppsRepository.monitoredPackages
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MonitoredAppsRepository.DEFAULT_PACKAGES)
 
     val serviceRunning: StateFlow<Boolean> = ScreenStateHolder.serviceRunning
     val latestSnapshot: StateFlow<ScreenSnapshot?> = ScreenStateHolder.latestSnapshot
@@ -51,5 +58,13 @@ class HomeViewModel(private val modeRepository: ModeRepository) : ViewModel() {
 
     fun setMode(mode: OperatingMode) {
         viewModelScope.launch { modeRepository.setMode(mode) }
+    }
+
+    fun addMonitoredApp(packageName: String) {
+        viewModelScope.launch { monitoredAppsRepository.addPackage(packageName) }
+    }
+
+    fun removeMonitoredApp(packageName: String) {
+        viewModelScope.launch { monitoredAppsRepository.removePackage(packageName) }
     }
 }

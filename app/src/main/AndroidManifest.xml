@@ -9,6 +9,16 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Lets the "모니터링 허용 앱" picker on the Home tab list installed apps the user can add
+         to the accessibility service's allowlist - without this, package visibility restrictions
+         (API 30+) would silently return an empty/near-empty list from queryIntentActivities. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"

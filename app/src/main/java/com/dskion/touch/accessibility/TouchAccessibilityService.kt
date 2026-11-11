@@ -26,6 +26,7 @@ import com.dskion.touch.core.rules.BaeminRules
 import com.dskion.touch.data.CommandPhraseRepository
 import com.dskion.touch.data.EditableCommand
 import com.dskion.touch.data.ModeRepository
+import com.dskion.touch.data.MonitoredAppsRepository
 import com.dskion.touch.data.OperatingMode
 import com.dskion.touch.overlay.VoiceOverlayController
 import com.dskion.touch.voice.TtsSpeaker
@@ -56,6 +57,7 @@ class TouchAccessibilityService : AccessibilityService() {
     private var lastProcessedAtMillis = 0L
     private val phraseRepository = CommandPhraseRepository(this)
     private val modeRepository = ModeRepository(this)
+    private val monitoredAppsRepository = MonitoredAppsRepository(this)
     private val newDispatchCommand = NewDispatchCommand(this)
     private val acceptDispatchCommand = AcceptDispatchCommand(this)
     private val respondDispatchCommand = RespondDispatchCommand(this)
@@ -92,6 +94,22 @@ class TouchAccessibilityService : AccessibilityService() {
                 updateContinuousListening()
             }
         }
+        serviceScope.launch {
+            monitoredAppsRepository.monitoredPackages.collect { packages -> applyPackageFilter(packages) }
+        }
+    }
+
+    /**
+     * Restricts which apps this service even receives accessibility events for, at the OS level -
+     * an app not in [packages] never generates an event for this service, so its on-screen text
+     * (a banking app's balance, a password field, an OTP, ...) never reaches this process, not even
+     * transiently. Always sets a concrete array, never null: null means "no filter" (every app),
+     * which would silently undo this the moment the user removes the last entry.
+     */
+    private fun applyPackageFilter(packages: Set<String>) {
+        val info = serviceInfo ?: return
+        info.packageNames = packages.toTypedArray()
+        serviceInfo = info
     }
 
     private fun startAsForegroundService() {
