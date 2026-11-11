@@ -12,6 +12,7 @@ import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.app.NotificationCompat
@@ -34,6 +35,7 @@ import com.dskion.touch.overlay.VoiceOverlayController
 import com.dskion.touch.voice.TtsSpeaker
 import com.dskion.touch.voice.VoiceRecognizer
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -65,7 +67,17 @@ class TouchAccessibilityService : AccessibilityService() {
     private val newDispatchCommand = NewDispatchCommand(this)
     private val acceptDispatchCommand = AcceptDispatchCommand(this)
     private val respondDispatchCommand = RespondDispatchCommand(this)
-    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    /** Without this, an uncaught exception from ANY one of the several independent
+     * serviceScope.launch { repo.collect { ... } } blocks below (DataStore read hiccup, a bad
+     * framework call, anything) propagates past SupervisorJob to the thread's default handler -
+     * which on Android kills the whole app process, not just this one collector. Log and keep
+     * going instead; a background service outliving a single bad event matters a lot more here
+     * than surfacing that failure loudly. */
+    private val serviceExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        Log.e(LOG_TAG, "Unhandled exception in a background collector", throwable)
+    }
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob() + serviceExceptionHandler)
     private lateinit var ttsSpeaker: TtsSpeaker
     private val overlayController by lazy {
         VoiceOverlayController(this, serviceScope, onTap = ::startVoiceCommand)
@@ -125,11 +137,13 @@ class TouchAccessibilityService : AccessibilityService() {
     /** 일반 모드 + 사용자가 끄지 않았을 때만 플로팅 버튼을 띄운다. 배달 모드는 손 안 대고 계속
      * 듣기 때문에 버튼이 무의미하고, 다른 앱/홈 화면 위에 계속 떠 있으면 방해만 된다. */
     private fun updateOverlayVisibility() {
-        if (overlayPrefEnabled && currentMode == OperatingMode.NORMAL) {
-            overlayController.show()
-        } else {
-            overlayController.hide()
-        }
+        runCatching {
+            if (overlayPrefEnabled && currentMode == OperatingMode.NORMAL) {
+                overlayController.show()
+            } else {
+                overlayController.hide()
+            }
+        }.onFailure { e -> Log.e(LOG_TAG, "Failed to update overlay visibility", e) }
     }
 
     /**
@@ -140,9 +154,11 @@ class TouchAccessibilityService : AccessibilityService() {
      * which would silently undo this the moment the user removes the last entry.
      */
     private fun applyPackageFilter(packages: Set<String>) {
-        val info = serviceInfo ?: return
-        info.packageNames = packages.toTypedArray()
-        serviceInfo = info
+        runCatching {
+            val info = serviceInfo ?: return@runCatching
+            info.packageNames = packages.toTypedArray()
+            serviceInfo = info
+        }.onFailure { e -> Log.e(LOG_TAG, "Failed to apply package filter", e) }
     }
 
     private fun startAsForegroundService() {
@@ -456,6 +472,7 @@ class TouchAccessibilityService : AccessibilityService() {
     }
 
     companion object {
+        private const val LOG_TAG = "TouchAccessibility"
         private const val DEBOUNCE_MILLIS = 300L
         private const val VOICE_COMMAND_COUNTDOWN_SECONDS = 1
         private const val LISTEN_START_VIBRATION_MILLIS = 50L
