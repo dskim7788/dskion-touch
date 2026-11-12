@@ -113,7 +113,7 @@
     <string name="settings_ai_key_placeholder">AIza…</string>
     <string name="settings_ai_key_save">저장</string>
     <string name="settings_ai_key_saved">저장됐어요</string>
-    <string name="settings_ai_note">※ 키는 이 기기에만 저장되고, generativelanguage.googleapis.com 외에는 전송되지 않아요</string>
+    <string name="settings_ai_note">※ 키는 이 기기에만 저장되고, generativelanguage.googleapis.com 외에는 전송되지 않아요. 단, 기기에 저장된 키는 완전한 비밀은 아니에요(루팅된 기기 등에서는 추출될 수 있어요) - 걱정되면 이 키를 다른 중요한 계정에는 쓰지 마세요</string>
     <string name="settings_ai_last_error">마지막 AI 오류: %1$s</string>
     <string name="settings_ai_last_error_clear">지우기</string>
 
