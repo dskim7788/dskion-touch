@@ -22,6 +22,7 @@ import com.dskion.touch.accessibility.command.AcceptDispatchCommand
 import com.dskion.touch.accessibility.command.NewDispatchCommand
 import com.dskion.touch.accessibility.command.RespondDispatchCommand
 import com.dskion.touch.ai.AiManagerClient
+import com.dskion.touch.ai.GeminiTtsClient
 import com.dskion.touch.core.match.CommandMatcher
 import com.dskion.touch.core.model.ScreenSnapshot
 import com.dskion.touch.core.rules.BaeminRules
@@ -34,6 +35,7 @@ import com.dskion.touch.data.ModeRepository
 import com.dskion.touch.data.MonitoredAppsRepository
 import com.dskion.touch.data.OperatingMode
 import com.dskion.touch.overlay.VoiceOverlayController
+import com.dskion.touch.voice.PcmPlayer
 import com.dskion.touch.voice.TtsSpeaker
 import com.dskion.touch.voice.VoiceRecognizer
 import kotlinx.coroutines.CancellationException
@@ -300,7 +302,7 @@ class TouchAccessibilityService : AccessibilityService() {
             // 대화가 시작됐다는 걸 바로 알 수 있게.
             val greeting = managerReplyFor(null)
             ScreenStateHolder.setVoiceStatus(greeting)
-            ttsSpeaker.speak(greeting)
+            speakManagerReply(greeting)
 
             while (isActive) {
                 try {
@@ -320,7 +322,7 @@ class TouchAccessibilityService : AccessibilityService() {
                     if (text != null) {
                         val reply = managerReplyFor(text)
                         ScreenStateHolder.setVoiceStatus(reply)
-                        ttsSpeaker.speak(reply)
+                        speakManagerReply(reply)
                         vibrate()
                     }
                 } catch (e: CancellationException) {
@@ -365,6 +367,25 @@ class TouchAccessibilityService : AccessibilityService() {
             },
             onFailure = { managerReplyForScripted(text) },
         )
+    }
+
+    /** Speaks a 매니저 line with Gemini's natural TTS voice when an AI key is configured (a
+     * different prebuilt voice per persona), falling back to the device's own TextToSpeech if
+     * that fails or no key is set. Always suspends until playback is actually done - the chat
+     * loop starts listening again right after this returns, so the mic must not still be hearing
+     * the manager's own voice. */
+    private suspend fun speakManagerReply(text: String) {
+        val apiKey = managerApiKey
+        if (apiKey.isNotBlank()) {
+            val voiceName = if (currentPersona == ManagerPersona.MALE) GEMINI_VOICE_MALE else GEMINI_VOICE_FEMALE
+            val result = GeminiTtsClient.synthesize(apiKey, text, voiceName)
+            if (result.isSuccess) {
+                val audio = result.getOrThrow()
+                PcmPlayer.play(audio.pcm, audio.sampleRateHz)
+                return
+            }
+        }
+        ttsSpeaker.speakAndAwait(text)
     }
 
     private fun managerReplyForScripted(text: String?): String {
@@ -459,7 +480,7 @@ class TouchAccessibilityService : AccessibilityService() {
             if (normalized.contains("매니저") && managerVoiceChatEnabled) {
                 val reply = managerReplyFor(text)
                 ScreenStateHolder.setVoiceStatus(reply)
-                ttsSpeaker.speak(reply)
+                speakManagerReply(reply)
                 vibrate()
                 return
             }
@@ -644,6 +665,12 @@ class TouchAccessibilityService : AccessibilityService() {
         private const val CONTINUOUS_LISTEN_GAP_MILLIS = 400L
         private const val MALE_PITCH = 0.85f
         private const val FEMALE_PITCH = 1.15f
+
+        /** Prebuilt Gemini TTS voice names (see Gemini API docs) used for each persona when an
+         * AI key is configured - picked for how they sound (Charon: deeper/informative, Kore:
+         * firm/clear), not an official gender label from Google. */
+        private const val GEMINI_VOICE_MALE = "Charon"
+        private const val GEMINI_VOICE_FEMALE = "Kore"
 
         /** user+assistant 합쳐서 최대 이만큼만 맥락으로 들고 간다 - 라이딩 내내 무한히 쌓이면
          * 매 요청이 점점 느려지고(토큰 수 증가) 비용도 늘어난다. */

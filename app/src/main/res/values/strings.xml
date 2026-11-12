@@ -108,7 +108,7 @@
     <string name="settings_voice_chat_note">※ 아래 AI 키를 넣지 않으면 외부 인터넷 연결 없이 기기 안에서만 동작하는 정해진 대사로 답해요</string>
 
     <string name="settings_ai_title">AI 대화 (선택, 무료)</string>
-    <string name="settings_ai_desc">Google AI Studio(aistudio.google.com)에서 무료로 발급받은 Gemini API 키를 넣으면 매니저가 정해진 대사 대신 실제 AI로 자유롭게 대화해요. 신용카드 없이 무료 티어로 쓸 수 있고, 키를 비워두면 기존처럼 오프라인 대사로만 동작해요.</string>
+    <string name="settings_ai_desc">Google AI Studio(aistudio.google.com)에서 무료로 발급받은 Gemini API 키를 넣으면 매니저가 정해진 대사 대신 실제 AI로 자유롭게 대화하고, 목소리도 기기 기본 음성 대신 훨씬 자연스러운 AI 음성으로 말해요. 신용카드 없이 무료 티어로 쓸 수 있고, 키를 비워두면 기존처럼 오프라인 대사·기본 음성으로만 동작해요.</string>
     <string name="settings_ai_key_label">Gemini API 키</string>
     <string name="settings_ai_key_placeholder">AIza…</string>
     <string name="settings_ai_key_save">저장</string>
