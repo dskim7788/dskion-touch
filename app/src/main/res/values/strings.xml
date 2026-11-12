@@ -10,7 +10,9 @@
     <string name="home_permissions_all_granted">모두 허용됨</string>
 
     <string name="home_manager_chat_title">%1$s와 대화하기</string>
-    <string name="home_manager_chat_action">말하기</string>
+    <string name="home_manager_chat_action">대화 시작</string>
+    <string name="home_manager_chat_action_stop">대화 끄기</string>
+    <string name="home_manager_chat_active_desc">대화 중이에요 — 계속 말을 걸어보세요. 끄려면 버튼을 다시 눌러주세요</string>
     <string name="home_manager_chat_disabled_desc">설정에서 음성 채팅을 켜면 대화할 수 있어요</string>
     <string name="home_manager_chat_disabled">음성 채팅이 꺼져 있어요 — 설정에서 먼저 켜주세요</string>
 

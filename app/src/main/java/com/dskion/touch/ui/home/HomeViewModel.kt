@@ -56,6 +56,7 @@ class HomeViewModel(
     val serviceRunning: StateFlow<Boolean> = ScreenStateHolder.serviceRunning
     val latestSnapshot: StateFlow<ScreenSnapshot?> = ScreenStateHolder.latestSnapshot
     val voiceStatus: StateFlow<String?> = ScreenStateHolder.voiceStatus
+    val managerChatActive: StateFlow<Boolean> = ScreenStateHolder.managerChatActive
 
     /** Permission grants can only change while the user is in system Settings, so this is
      * called from the screen's onResume rather than observed reactively. */

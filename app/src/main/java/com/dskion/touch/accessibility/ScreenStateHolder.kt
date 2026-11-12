@@ -25,6 +25,12 @@ object ScreenStateHolder {
     private val _isListening = MutableStateFlow(false)
     val isListening: StateFlow<Boolean> = _isListening
 
+    /** On/off state of the Home tab's "매니저와 대화하기" continuous chat loop - toggled once,
+     * stays on (listen → reply → listen again) until toggled back off, instead of one press per
+     * utterance. */
+    private val _managerChatActive = MutableStateFlow(false)
+    val managerChatActive: StateFlow<Boolean> = _managerChatActive
+
     fun setServiceRunning(running: Boolean) {
         _serviceRunning.value = running
     }
@@ -39,5 +45,9 @@ object ScreenStateHolder {
 
     fun setListening(listening: Boolean) {
         _isListening.value = listening
+    }
+
+    fun setManagerChatActive(active: Boolean) {
+        _managerChatActive.value = active
     }
 }

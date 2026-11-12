@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.TwoWheeler
@@ -65,6 +66,7 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
     val overlayEnabled by viewModel.overlayEnabled.collectAsState()
     val managerPersona by viewModel.managerPersona.collectAsState()
     val managerVoiceChatEnabled by viewModel.managerVoiceChatEnabled.collectAsState()
+    val managerChatActive by viewModel.managerChatActive.collectAsState()
     val monitoredPackages by viewModel.monitoredPackages.collectAsState()
     val serviceRunning by viewModel.serviceRunning.collectAsState()
     val latestSnapshot by viewModel.latestSnapshot.collectAsState()
@@ -121,7 +123,11 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
                 voiceStatus = voiceStatus,
             )
 
-            ManagerChatCard(persona = managerPersona, voiceChatEnabled = managerVoiceChatEnabled)
+            ManagerChatCard(
+                persona = managerPersona,
+                voiceChatEnabled = managerVoiceChatEnabled,
+                chatActive = managerChatActive,
+            )
 
             val state = viewModel.permissionState
             val allPermissionsGranted = state.micGranted && state.accessibilityGranted &&
@@ -188,10 +194,11 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
     }
 }
 
-/** One-tap entry point to talk to the 매니저 - listens once and replies via TTS, no need to say
- * the "매니저" wake word first since tapping this button already is the wake word. */
+/** On/off entry point to talk to the 매니저 - toggling it on starts a continuous hands-free
+ * listen→reply→listen loop (no need to say the "매니저" wake word, since turning this on already
+ * is the wake word) that keeps running until toggled off again. */
 @Composable
-private fun ManagerChatCard(persona: ManagerPersona, voiceChatEnabled: Boolean) {
+private fun ManagerChatCard(persona: ManagerPersona, voiceChatEnabled: Boolean, chatActive: Boolean) {
     val avatarRes = if (persona == ManagerPersona.MALE) R.drawable.manager_male else R.drawable.manager_female
 
     Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
@@ -217,20 +224,30 @@ private fun ManagerChatCard(persona: ManagerPersona, voiceChatEnabled: Boolean) 
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    if (voiceChatEnabled) {
-                        stringResource(R.string.settings_manager_desc)
-                    } else {
-                        stringResource(R.string.home_manager_chat_disabled_desc)
+                    when {
+                        !voiceChatEnabled -> stringResource(R.string.home_manager_chat_disabled_desc)
+                        chatActive -> stringResource(R.string.home_manager_chat_active_desc)
+                        else -> stringResource(R.string.settings_manager_desc)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             FilledIconButton(
-                onClick = { TouchAccessibilityService.instance?.startManagerChat() },
+                onClick = { TouchAccessibilityService.instance?.toggleManagerChat() },
                 enabled = voiceChatEnabled,
+                colors = if (chatActive) {
+                    IconButtonDefaults.filledIconButtonColors(containerColor = StatusGranted)
+                } else {
+                    IconButtonDefaults.filledIconButtonColors()
+                },
             ) {
-                Icon(Icons.Filled.Mic, contentDescription = stringResource(R.string.home_manager_chat_action))
+                Icon(
+                    if (chatActive) Icons.Filled.MicOff else Icons.Filled.Mic,
+                    contentDescription = stringResource(
+                        if (chatActive) R.string.home_manager_chat_action_stop else R.string.home_manager_chat_action,
+                    ),
+                )
             }
         }
     }

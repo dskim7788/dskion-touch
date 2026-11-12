@@ -90,6 +90,11 @@ class TouchAccessibilityService : AccessibilityService() {
     private var currentForegroundPackage: String? = null
     private var continuousListeningJob: Job? = null
 
+    /** Home 탭 "매니저와 대화하기" 버튼의 on/off 상태 - 켜면 [startManagerChatLoop]이 끌 때까지
+     * 계속 듣고/답한다. 배달 모드의 [continuousListeningJob]과 마이크를 동시에 쓸 수 없어서
+     * 서로 상대를 멈추고 시작한다 ([startContinuousListening]/[startManagerChatLoop] 참고). */
+    private var managerChatJob: Job? = null
+
     /** 플로팅 버튼은 일반 모드의 수동 트리거일 뿐 - 배달 모드는 손 안 대고 계속 듣기 때문에
      * 버튼이 필요 없고, 다른 앱/홈 화면 위에 항상 떠 있는 게 오히려 거슬린다. 모드가 바뀌거나
      * 사용자가 홈 화면에서 직접 끄면 [updateOverlayVisibility]가 보이고/숨긴다. */
@@ -130,7 +135,10 @@ class TouchAccessibilityService : AccessibilityService() {
             }
         }
         serviceScope.launch {
-            managerRepository.voiceChatEnabled.collect { enabled -> managerVoiceChatEnabled = enabled }
+            managerRepository.voiceChatEnabled.collect { enabled ->
+                managerVoiceChatEnabled = enabled
+                if (!enabled) stopManagerChatLoop()
+            }
         }
     }
 
@@ -224,12 +232,16 @@ class TouchAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * The explicit "매니저와 대화하기" button on the Home tab - listens once (no countdown, since
-     * the user is already looking at the phone and just tapped a button, unlike the other voice
-     * paths) and always treats whatever was said as directed at the manager, regardless of
-     * whether it contains the "매니저" wake word - the button itself is the wake word here.
+     * The "매니저와 대화하기" button on the Home tab - an on/off toggle rather than a
+     * press-per-utterance trigger. Turning it on starts a hands-free listen→reply→listen loop
+     * that keeps running until turned off again, so the rider doesn't have to tap the button
+     * before every single thing they say to the manager.
      */
-    fun startManagerChat() {
+    fun toggleManagerChat() {
+        if (managerChatJob?.isActive == true) {
+            stopManagerChatLoop()
+            return
+        }
         val micGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
         if (!micGranted) {
@@ -240,24 +252,53 @@ class TouchAccessibilityService : AccessibilityService() {
             ScreenStateHolder.setVoiceStatus(getString(R.string.home_manager_chat_disabled))
             return
         }
-        if (ScreenStateHolder.isListening.value) return
+        startManagerChatLoop()
+    }
 
-        ScreenStateHolder.setListening(true)
+    /** Same mic, so this and the 배달 모드 hands-free loop can't run at once - starting one
+     * always stops the other first. */
+    private fun startManagerChatLoop() {
+        if (managerChatJob?.isActive == true) return
+        stopContinuousListening()
         vibrate(LISTEN_START_VIBRATION_MILLIS)
-        VoiceRecognizer(this).startListening(
-            onResult = { text ->
-                val reply = managerReplyFor(text)
-                ScreenStateHolder.setVoiceStatus(reply)
-                ttsSpeaker.speak(reply)
-                vibrate()
-                ScreenStateHolder.setListening(false)
-            },
-            onError = { message ->
-                ScreenStateHolder.setVoiceStatus(message)
-                ScreenStateHolder.setListening(false)
-                vibrate()
-            },
-        )
+        ScreenStateHolder.setManagerChatActive(true)
+        managerChatJob = serviceScope.launch {
+            while (isActive) {
+                try {
+                    val micGranted = ContextCompat.checkSelfPermission(this@TouchAccessibilityService, Manifest.permission.RECORD_AUDIO) ==
+                        PackageManager.PERMISSION_GRANTED
+                    if (!micGranted) {
+                        ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_mic_required))
+                        delay(MIC_PERMISSION_RECHECK_MILLIS)
+                        continue
+                    }
+
+                    ScreenStateHolder.setListening(true)
+                    val text = awaitOneRecognitionResult()
+                    ScreenStateHolder.setListening(false)
+                    // 침묵/미인식은 그냥 넘어간다 - 1초마다 "못 들었어요"를 말하면 짜증나니까,
+                    // 실제로 뭔가 알아들었을 때만 답한다.
+                    if (text != null) {
+                        val reply = managerReplyFor(text)
+                        ScreenStateHolder.setVoiceStatus(reply)
+                        ttsSpeaker.speak(reply)
+                        vibrate()
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    ScreenStateHolder.setListening(false)
+                }
+                delay(CONTINUOUS_LISTEN_GAP_MILLIS)
+            }
+        }
+    }
+
+    private fun stopManagerChatLoop() {
+        managerChatJob?.cancel()
+        managerChatJob = null
+        ScreenStateHolder.setManagerChatActive(false)
+        if (ScreenStateHolder.isListening.value) ScreenStateHolder.setListening(false)
     }
 
     private fun managerReplyFor(text: String?): String {
@@ -284,6 +325,7 @@ class TouchAccessibilityService : AccessibilityService() {
      */
     private fun startContinuousListening() {
         if (continuousListeningJob?.isActive == true) return
+        stopManagerChatLoop()
         continuousListeningJob = serviceScope.launch {
             while (isActive) {
                 try {
@@ -507,6 +549,7 @@ class TouchAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         stopContinuousListening()
+        stopManagerChatLoop()
         overlayController.hide()
         serviceScope.cancel()
         if (::ttsSpeaker.isInitialized) ttsSpeaker.shutdown()
