@@ -11,17 +11,17 @@ import java.net.URL
 import java.nio.charset.StandardCharsets
 
 /**
- * Thin client for the Anthropic Messages API - same model/provider as 루틴 라이더의 "AI 루틴
- * 관리" 기능, called directly from the device with the user's own key since this app has no
- * backend/account system to hold it server-side instead. Deliberately minimal: one short text
- * completion, no tools, no streaming - the reply goes straight into TTS while the rider is on the
- * bike, so it needs to come back quickly and stay short.
+ * Thin client for Google's Gemini API (generativelanguage.googleapis.com) - picked specifically
+ * because it has a genuinely free tier (a key from aistudio.google.com, no card required),
+ * unlike Anthropic's pay-as-you-go API. Called directly from the device with the user's own key
+ * since this app has no backend/account system to hold it server-side. Deliberately minimal: one
+ * short text completion, no tools/streaming - the reply goes straight into TTS while the rider is
+ * on the bike, so it needs to come back quickly and stay short.
  */
 object AiManagerClient {
     private const val LOG_TAG = "AiManagerClient"
-    private const val ENDPOINT = "https://api.anthropic.com/v1/messages"
-    private const val MODEL = "claude-sonnet-5-5"
-    private const val MAX_TOKENS = 300
+    private const val MODEL = "gemini-2.0-flash"
+    private const val MAX_OUTPUT_TOKENS = 300
     private const val CONNECT_TIMEOUT_MILLIS = 6000
     private const val READ_TIMEOUT_MILLIS = 20000
 
@@ -32,27 +32,39 @@ object AiManagerClient {
         userMessage: String,
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
-            val messages = JSONArray()
-            for ((role, content) in history) {
-                messages.put(JSONObject().put("role", role).put("content", content))
+            // Gemini는 "assistant" 대신 "model" 역할을 쓴다 - 나머지 코드는 전부 user/assistant로
+            // 다루므로 여기서만 변환한다.
+            val contents = JSONArray()
+            for ((role, text) in history) {
+                val geminiRole = if (role == "assistant") "model" else "user"
+                contents.put(
+                    JSONObject()
+                        .put("role", geminiRole)
+                        .put("parts", JSONArray().put(JSONObject().put("text", text))),
+                )
             }
-            messages.put(JSONObject().put("role", "user").put("content", userMessage))
+            contents.put(
+                JSONObject()
+                    .put("role", "user")
+                    .put("parts", JSONArray().put(JSONObject().put("text", userMessage))),
+            )
 
             val requestBody = JSONObject()
-                .put("model", MODEL)
-                .put("max_tokens", MAX_TOKENS)
-                .put("system", systemPrompt)
-                .put("messages", messages)
+                .put(
+                    "systemInstruction",
+                    JSONObject().put("parts", JSONArray().put(JSONObject().put("text", systemPrompt))),
+                )
+                .put("contents", contents)
+                .put("generationConfig", JSONObject().put("maxOutputTokens", MAX_OUTPUT_TOKENS))
                 .toString()
 
-            val connection = (URL(ENDPOINT).openConnection() as HttpURLConnection).apply {
+            val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent?key=$apiKey")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = CONNECT_TIMEOUT_MILLIS
                 readTimeout = READ_TIMEOUT_MILLIS
                 doOutput = true
                 setRequestProperty("content-type", "application/json")
-                setRequestProperty("x-api-key", apiKey)
-                setRequestProperty("anthropic-version", "2023-06-01")
             }
 
             connection.outputStream.use { stream ->
@@ -64,17 +76,20 @@ object AiManagerClient {
             val responseText = stream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
 
             if (status !in 200..299) {
-                Log.e(LOG_TAG, "Anthropic API error $status: $responseText")
+                Log.e(LOG_TAG, "Gemini API error $status: $responseText")
                 error("HTTP $status")
             }
 
-            val content = JSONObject(responseText).optJSONArray("content") ?: JSONArray()
+            val candidates = JSONObject(responseText).optJSONArray("candidates") ?: JSONArray()
+            val firstCandidate = candidates.optJSONObject(0) ?: error("empty reply")
+            val parts = firstCandidate.optJSONObject("content")?.optJSONArray("parts") ?: JSONArray()
             val reply = StringBuilder()
-            for (i in 0 until content.length()) {
-                val block = content.optJSONObject(i) ?: continue
-                if (block.optString("type") == "text") {
+            for (i in 0 until parts.length()) {
+                val part = parts.optJSONObject(i) ?: continue
+                val text = part.optString("text")
+                if (text.isNotEmpty()) {
                     if (reply.isNotEmpty()) reply.append(" ")
-                    reply.append(block.optString("text"))
+                    reply.append(text)
                 }
             }
             reply.toString().trim().ifEmpty { error("empty reply") }

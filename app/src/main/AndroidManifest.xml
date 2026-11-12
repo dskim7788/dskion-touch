@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- AI 매니저 대화(선택 기능, 설정에서 API 키를 넣어야 켜짐)가 api.anthropic.com을 호출할 때만
-         쓰인다 - 키를 넣지 않으면 이 앱은 여전히 아무 네트워크 요청도 하지 않는다. -->
+    <!-- AI 매니저 대화(선택 기능, 설정에서 Gemini API 키를 넣어야 켜짐)가
+         generativelanguage.googleapis.com을 호출할 때만 쓰인다 - 키를 넣지 않으면 이 앱은
+         여전히 아무 네트워크 요청도 하지 않는다. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />

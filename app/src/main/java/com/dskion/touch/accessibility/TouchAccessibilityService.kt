@@ -70,8 +70,8 @@ class TouchAccessibilityService : AccessibilityService() {
     private var currentPersona: ManagerPersona = ManagerPersona.FEMALE
 
     /** Blank = AI 미설정, [managerReplyFor]가 기존 스크립트 대사로만 답한다. 설정에서 키를
-     * 넣으면 실제 Anthropic API로 자유 대화가 된다 - 이 앱은 백엔드가 없어서 사용자 본인 키를
-     * 기기에서 바로 쓴다. */
+     * 넣으면 실제 Gemini API(무료 티어)로 자유 대화가 된다 - 이 앱은 백엔드가 없어서 사용자
+     * 본인 키를 기기에서 바로 쓴다. */
     private var managerApiKey: String = ""
 
     /** 매니저와의 대화 맥락 - [startManagerChatLoop]를 켤 때마다 비워서 새 대화로 시작한다.
@@ -319,7 +319,7 @@ class TouchAccessibilityService : AccessibilityService() {
         if (ScreenStateHolder.isListening.value) ScreenStateHolder.setListening(false)
     }
 
-    /** AI 키가 설정돼 있으면 실제 Anthropic API로 자유롭게 대화하고, 실패하거나(네트워크 오류,
+    /** AI 키가 설정돼 있으면 실제 Gemini API로 자유롭게 대화하고, 실패하거나(네트워크 오류,
      * 타임아웃 등) 키가 없으면 기존 스크립트 대사로 자연스럽게 떨어진다 - 라이딩 중에는 "AI 응답
      * 실패"보다 뭐라도 짧게 답해주는 게 낫다. */
     private suspend fun managerReplyFor(text: String?): String {
@@ -351,8 +351,7 @@ class TouchAccessibilityService : AccessibilityService() {
     }
 
     /** AI가 짧고 자연스럽게, 라이더의 현재 상황(핸들에서 손을 못 떼는 중, 화면을 못 보는 중)을
-     * 감안해서 답하도록 하는 시스템 프롬프트 - 루틴 라이더의 "AI 루틴 관리" 기능과 같은 모델/
-     * 제공사(Anthropic)를 쓴다. */
+     * 감안해서 답하도록 하는 시스템 프롬프트. */
     private fun buildManagerSystemPrompt(): String = """
         당신은 배달 라이더용 음성 보조 앱 "dskion touch"의 AI 매니저 "${currentPersona.displayName}"입니다.
         지금 사용자는 전기자전거를 타고 두 손을 핸들에서 떼지 않은 채 음성만으로 당신과 대화하고 있고,
@@ -431,7 +430,7 @@ class TouchAccessibilityService : AccessibilityService() {
             val normalized = text.replace(" ", "")
 
             // "매니저" 호출 - 비서 역할. 설정에서 AI 키를 넣었으면 managerReplyFor가 실제
-            // Anthropic API로 자유 대화를 하고, 안 넣었으면 세션 집계 읽어주기/인사 같은 정해진
+            // Gemini API로 자유 대화를 하고, 안 넣었으면 세션 집계 읽어주기/인사 같은 정해진
             // 대사로 답한다 (managerReplyForScripted).
             if (normalized.contains("매니저") && managerVoiceChatEnabled) {
                 val reply = managerReplyFor(text)
