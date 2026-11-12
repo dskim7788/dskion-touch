@@ -186,22 +186,37 @@ class TouchAccessibilityService : AccessibilityService() {
         }.onFailure { e -> Log.e(LOG_TAG, "Failed to apply package filter", e) }
     }
 
+    /**
+     * The manifest declares this service's foregroundServiceType as "microphone" - on API 34+,
+     * starting a foreground service with that type while RECORD_AUDIO isn't granted throws a
+     * SecurityException immediately, and this runs unconditionally at the very top of
+     * [onServiceConnected], which the OS calls every time the (already-enabled from a previous
+     * install) accessibility service reconnects - with no mic permission, that's a crash loop on
+     * every single process start, before anything else (including the app's own UI) gets a
+     * chance to run. runCatching here is the actual fix, not just defense in depth: without mic
+     * permission the service simply stays a regular (non-foreground) accessibility service
+     * instead of taking the whole process down.
+     */
     private fun startAsForegroundService() {
-        val manager = getSystemService(NotificationManager::class.java) ?: return
-        manager.createNotificationChannel(
-            NotificationChannel(NOTIFICATION_CHANNEL_ID, "dskion touch 서비스", NotificationManager.IMPORTANCE_LOW),
-        )
-        val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setContentTitle(getString(R.string.service_status_title))
-            .setContentText(getString(R.string.service_status_on))
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setOngoing(true)
-            .build()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
+        runCatching {
+            val manager = getSystemService(NotificationManager::class.java) ?: return@runCatching
+            manager.createNotificationChannel(
+                NotificationChannel(NOTIFICATION_CHANNEL_ID, "dskion touch 서비스", NotificationManager.IMPORTANCE_LOW),
+            )
+            val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+                .setContentTitle(getString(R.string.service_status_title))
+                .setContentText(getString(R.string.service_status_on))
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setOngoing(true)
+                .build()
+            val micGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && micGranted) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        }.onFailure { e -> Log.e(LOG_TAG, "Failed to start foreground service", e) }
     }
 
     /**
