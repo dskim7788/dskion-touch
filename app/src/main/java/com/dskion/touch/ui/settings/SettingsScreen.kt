@@ -49,6 +49,7 @@ fun SettingsScreen(factory: AppViewModelFactory, viewModel: SettingsViewModel = 
     val maleVoiceName by viewModel.maleVoiceName.collectAsState()
     val femaleVoiceName by viewModel.femaleVoiceName.collectAsState()
     val previewState by viewModel.previewState.collectAsState()
+    val lastAiError by viewModel.lastAiError.collectAsState()
 
     Column(
         modifier = Modifier
@@ -123,6 +124,19 @@ fun SettingsScreen(factory: AppViewModelFactory, viewModel: SettingsViewModel = 
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                lastAiError?.let { error ->
+                    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            stringResource(R.string.settings_ai_last_error, error),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = viewModel::clearAiError) {
+                            Text(stringResource(R.string.settings_ai_last_error_clear))
+                        }
+                    }
+                }
             }
         }
 

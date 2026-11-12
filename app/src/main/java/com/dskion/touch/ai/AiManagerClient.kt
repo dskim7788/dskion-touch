@@ -77,6 +77,7 @@ object AiManagerClient {
 
             if (status !in 200..299) {
                 Log.e(LOG_TAG, "Gemini API error $status: $responseText")
+                AiCallDiagnostics.record("AiManagerClient($MODEL)", "HTTP $status - ${responseText.take(300)}")
                 error("HTTP $status")
             }
 
@@ -93,6 +94,10 @@ object AiManagerClient {
                 }
             }
             reply.toString().trim().ifEmpty { error("empty reply") }
-        }.onFailure { e -> Log.e(LOG_TAG, "AI completion failed", e) }
+        }.onFailure { e ->
+            Log.e(LOG_TAG, "AI completion failed", e)
+            val message = e.message ?: e.javaClass.simpleName
+            if (!message.startsWith("HTTP ")) AiCallDiagnostics.record("AiManagerClient($MODEL)", message)
+        }
     }
 }

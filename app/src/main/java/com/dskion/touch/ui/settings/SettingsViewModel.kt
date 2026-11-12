@@ -2,6 +2,7 @@ package com.dskion.touch.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dskion.touch.ai.AiCallDiagnostics
 import com.dskion.touch.ai.GeminiTtsClient
 import com.dskion.touch.ai.GeminiVoices
 import com.dskion.touch.data.AiChatRepository
@@ -41,6 +42,17 @@ class SettingsViewModel(
 
     val femaleVoiceName: StateFlow<String> = managerRepository.femaleVoiceName
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GeminiVoices.DEFAULT_FEMALE_VOICE)
+
+    /** The last thing that went wrong calling Gemini (text or voice), if anything - both AI calls
+     * fail silently by design (fall back to scripted replies/local TTS) so a ride doesn't go
+     * quiet, which also means there was never any visible reason when "AI 대화" just stopped
+     * acting like AI. Surfaced here since this is the one screen with an API key to debug. */
+    val lastAiError: StateFlow<String?> = AiCallDiagnostics.lastError
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    fun clearAiError() {
+        AiCallDiagnostics.clear()
+    }
 
     fun setPersona(persona: ManagerPersona) {
         viewModelScope.launch { managerRepository.setPersona(persona) }

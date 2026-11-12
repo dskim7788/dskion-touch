@@ -73,6 +73,7 @@ object GeminiTtsClient {
                 val responseText = stream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
                 if (status !in 200..299) {
                     Log.e(LOG_TAG, "Gemini TTS error $status: $responseText")
+                    AiCallDiagnostics.record("GeminiTtsClient($MODEL)", "HTTP $status - ${responseText.take(300)}")
                     error("HTTP $status")
                 }
 
@@ -88,6 +89,10 @@ object GeminiTtsClient {
                     ?: DEFAULT_SAMPLE_RATE_HZ
                 val pcm = Base64.decode(base64Data, Base64.NO_WRAP)
                 PcmAudio(pcm, sampleRate)
-            }.onFailure { e -> Log.e(LOG_TAG, "TTS synthesis failed", e) }
+            }.onFailure { e ->
+                Log.e(LOG_TAG, "TTS synthesis failed", e)
+                val message = e.message ?: e.javaClass.simpleName
+                if (!message.startsWith("HTTP ")) AiCallDiagnostics.record("GeminiTtsClient($MODEL)", message)
+            }
         }
 }

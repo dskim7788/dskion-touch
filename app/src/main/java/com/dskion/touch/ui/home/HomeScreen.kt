@@ -64,6 +64,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
+private const val CRASH_DIAG_PREFS_NAME = "crash_diagnostics"
+private const val KEY_LAST_SEEN_EXIT_TIMESTAMP = "last_seen_exit_timestamp"
+
 @Composable
 fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewModel(factory = factory)) {
     val context = LocalContext.current
@@ -87,17 +90,26 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
     // 1) TouchApplication이 받아 적어둔 자바/코틀린 예외 - 우리 코드가 던진 경우에만 있음.
     // 2) OS가 기억하는 "지난번에 왜 죽었는지"(ApplicationExitInfo) - 네이티브 크래시, ANR,
     //    시스템이 강제 종료한 경우처럼 우리 핸들러가 아예 못 잡는 경우도 여기엔 남는다.
+    // ApplicationExitInfo는 OS가 계속 들고 있어서, 타임스탬프로 "이미 보여준 것"을 직접
+    // 구분하지 않으면 새로고침할 때마다(=매번 앱을 열 때마다) 같은 옛날 크래시를 영원히
+    // 다시 보여준다 - 실제로 그래서 반복해서 떴던 것.
     var crashLog by remember { mutableStateOf<String?>(null) }
+    var exitTimestampToAck by remember { mutableStateOf<Long?>(null) }
     LaunchedEffect(Unit) {
+        val prefs = context.getSharedPreferences(CRASH_DIAG_PREFS_NAME, Context.MODE_PRIVATE)
+        val lastSeenTimestamp = prefs.getLong(KEY_LAST_SEEN_EXIT_TIMESTAMP, 0L)
+
         val ownCrash = File(context.filesDir, TouchApplication.CRASH_LOG_FILE_NAME)
             .takeIf { it.exists() }
             ?.let { runCatching { it.readText() }.getOrNull() }
-        val exitReason = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            readLastExitReason(context)
+        val exitInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            readLastExitReason(context)?.takeIf { it.timestampMillis > lastSeenTimestamp }
         } else {
             null
         }
-        crashLog = listOfNotNull(exitReason, ownCrash?.let { "[앱이 직접 기록한 예외]\n$it" })
+        exitTimestampToAck = exitInfo?.timestampMillis
+
+        crashLog = listOfNotNull(exitInfo?.text, ownCrash?.let { "[앱이 직접 기록한 예외]\n$it" })
             .joinToString("\n\n")
             .ifBlank { null }
     }
@@ -115,6 +127,12 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
             confirmButton = {
                 TextButton(onClick = {
                     runCatching { File(context.filesDir, TouchApplication.CRASH_LOG_FILE_NAME).delete() }
+                    exitTimestampToAck?.let { ts ->
+                        context.getSharedPreferences(CRASH_DIAG_PREFS_NAME, Context.MODE_PRIVATE)
+                            .edit()
+                            .putLong(KEY_LAST_SEEN_EXIT_TIMESTAMP, ts)
+                            .apply()
+                    }
                     crashLog = null
                 }) {
                     Text(stringResource(R.string.home_crash_dialog_confirm))
@@ -648,10 +666,14 @@ private fun ModeCard(
     }
 }
 
+private data class ExitReasonInfo(val text: String, val timestampMillis: Long)
+
 /** What [ActivityManager] remembers about why the app's last process ended - catches native
  * crashes, ANRs, and OS-initiated kills that never reach [TouchApplication]'s own
- * Thread.UncaughtExceptionHandler, so this is checked even when that file is empty. */
-private fun readLastExitReason(context: Context): String? {
+ * Thread.UncaughtExceptionHandler, so this is checked even when that file is empty. The OS keeps
+ * this around across launches regardless of whether it was already shown, so the caller must
+ * track [ExitReasonInfo.timestampMillis] itself to avoid re-showing the same old entry forever. */
+private fun readLastExitReason(context: Context): ExitReasonInfo? {
     val activityManager = context.getSystemService(ActivityManager::class.java) ?: return null
     val info = runCatching {
         activityManager.getHistoricalProcessExitReasons(context.packageName, 0, 1).firstOrNull()
@@ -674,9 +696,10 @@ private fun readLastExitReason(context: Context): String? {
         info.traceInputStream?.bufferedReader()?.use { it.readText() }
     }.getOrNull()
 
-    return buildString {
+    val text = buildString {
         append("[마지막 종료 원인: $reasonText]")
         info.description?.takeIf { it.isNotBlank() }?.let { append("\n설명: $it") }
         trace?.takeIf { it.isNotBlank() }?.let { append("\n--- trace ---\n${it.take(4000)}") }
     }
+    return ExitReasonInfo(text, info.timestamp)
 }
