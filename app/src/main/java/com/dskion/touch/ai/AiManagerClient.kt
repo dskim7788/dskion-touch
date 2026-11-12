@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets
 object AiManagerClient {
     private const val LOG_TAG = "AiManagerClient"
     private const val MODEL = "gemini-2.0-flash"
+    private const val RATE_LIMIT_KEY = "gemini_chat"
     private const val MAX_OUTPUT_TOKENS = 300
     private const val CONNECT_TIMEOUT_MILLIS = 6000
     private const val READ_TIMEOUT_MILLIS = 20000
@@ -31,6 +32,9 @@ object AiManagerClient {
         history: List<Pair<String, String>>,
         userMessage: String,
     ): Result<String> = withContext(Dispatchers.IO) {
+        if (RateLimitGuard.isRateLimited(RATE_LIMIT_KEY)) {
+            return@withContext Result.failure(IllegalStateException("rate limited, cooling down"))
+        }
         runCatching {
             // Gemini는 "assistant" 대신 "model" 역할을 쓴다 - 나머지 코드는 전부 user/assistant로
             // 다루므로 여기서만 변환한다.
@@ -78,6 +82,7 @@ object AiManagerClient {
             if (status !in 200..299) {
                 Log.e(LOG_TAG, "Gemini API error $status: $responseText")
                 AiCallDiagnostics.record("AiManagerClient($MODEL)", AiCallDiagnostics.describeHttpError(status, responseText))
+                if (status == 429) RateLimitGuard.markRateLimited(RATE_LIMIT_KEY)
                 error("HTTP $status")
             }
 

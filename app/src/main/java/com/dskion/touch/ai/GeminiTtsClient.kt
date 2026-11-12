@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets
 object GeminiTtsClient {
     private const val LOG_TAG = "GeminiTtsClient"
     private const val MODEL = "gemini-2.5-flash-preview-tts"
+    private const val RATE_LIMIT_KEY = "gemini_tts"
     private const val CONNECT_TIMEOUT_MILLIS = 6000
     private const val READ_TIMEOUT_MILLIS = 20000
     private const val DEFAULT_SAMPLE_RATE_HZ = 24000
@@ -29,6 +30,9 @@ object GeminiTtsClient {
 
     suspend fun synthesize(apiKey: String, text: String, voiceName: String): Result<PcmAudio> =
         withContext(Dispatchers.IO) {
+            if (RateLimitGuard.isRateLimited(RATE_LIMIT_KEY)) {
+                return@withContext Result.failure(IllegalStateException("rate limited, cooling down"))
+            }
             runCatching {
                 val requestBody = JSONObject()
                     .put(
@@ -74,6 +78,7 @@ object GeminiTtsClient {
                 if (status !in 200..299) {
                     Log.e(LOG_TAG, "Gemini TTS error $status: $responseText")
                     AiCallDiagnostics.record("GeminiTtsClient($MODEL)", AiCallDiagnostics.describeHttpError(status, responseText))
+                    if (status == 429) RateLimitGuard.markRateLimited(RATE_LIMIT_KEY)
                     error("HTTP $status")
                 }
 
