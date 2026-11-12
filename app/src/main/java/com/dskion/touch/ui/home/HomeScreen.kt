@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -45,6 +46,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dskion.touch.R
+import com.dskion.touch.TouchApplication
 import com.dskion.touch.accessibility.TouchAccessibilityService
 import com.dskion.touch.core.model.ScreenSnapshot
 import com.dskion.touch.data.ManagerPersona
@@ -57,6 +59,7 @@ import com.dskion.touch.util.batteryOptimizationIntent
 import com.dskion.touch.util.overlaySettingsIntent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 
 @Composable
 fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewModel(factory = factory)) {
@@ -74,6 +77,35 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
 
     val micPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         viewModel.refreshPermissions(context)
+    }
+
+    // 지난 실행에서 앱이 죽었으면(TouchApplication이 받아 적어둔 것) 여기서 한 번 보여준다 -
+    // 개발 환경에 기기 로그 접근이 없어서, 이게 유일하게 실제 원인을 알 수 있는 방법이다.
+    var crashLog by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        val file = File(context.filesDir, TouchApplication.CRASH_LOG_FILE_NAME)
+        if (file.exists()) crashLog = runCatching { file.readText() }.getOrNull()
+    }
+    crashLog?.let { log ->
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.home_crash_dialog_title)) },
+            text = {
+                Box(modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
+                    SelectionContainer {
+                        Text(log, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    runCatching { File(context.filesDir, TouchApplication.CRASH_LOG_FILE_NAME).delete() }
+                    crashLog = null
+                }) {
+                    Text(stringResource(R.string.home_crash_dialog_confirm))
+                }
+            },
+        )
     }
 
     DisposableEffect(lifecycleOwner) {
