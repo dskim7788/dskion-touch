@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -32,6 +34,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dskion.touch.R
 import com.dskion.touch.data.ManagerPersona
 import com.dskion.touch.ui.AppViewModelFactory
+import kotlinx.coroutines.delay
 
 /** 매니저 페르소나 선택 + 음성 채팅(칭찬/위로/정보 안내) on/off + AI 대화용 API 키. 홈 탭의
  * 설정 아이콘에서 들어온다. */
@@ -123,30 +126,55 @@ fun SettingsScreen(factory: AppViewModelFactory, viewModel: SettingsViewModel = 
 private fun ApiKeyField(savedApiKey: String, onSave: (String) -> Unit) {
     var input by remember { mutableStateOf(savedApiKey) }
     var visible by remember { mutableStateOf(false) }
+    // 저장 버튼을 눌러도 아무 반응이 없어 보여서 "저장이 안 되는 것 같다"는 혼란이 있었다 -
+    // 실제로는 저장이 됐어도 눈에 보이는 확인이 전혀 없었기 때문. 누를 때마다 잠깐 체크
+    // 표시를 보여준다.
+    var justSaved by remember { mutableStateOf(false) }
     // savedApiKey only has a real value once DataStore's first emission lands, so sync the
     // field to it exactly once - after that, the field is the user's to edit.
     LaunchedEffect(Unit) { input = savedApiKey }
+    LaunchedEffect(justSaved) {
+        if (justSaved) {
+            delay(1500)
+            justSaved = false
+        }
+    }
 
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
-            value = input,
-            onValueChange = { input = it },
-            modifier = Modifier.weight(1f),
-            label = { Text(stringResource(R.string.settings_ai_key_label)) },
-            placeholder = { Text(stringResource(R.string.settings_ai_key_placeholder)) },
-            singleLine = true,
-            visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
-            trailingIcon = {
-                IconButton(onClick = { visible = !visible }) {
-                    Icon(
-                        if (visible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                        contentDescription = null,
-                    )
-                }
-            },
-        )
-        TextButton(onClick = { onSave(input) }) {
-            Text(stringResource(R.string.settings_ai_key_save))
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = input,
+                onValueChange = { input = it },
+                modifier = Modifier.weight(1f),
+                label = { Text(stringResource(R.string.settings_ai_key_label)) },
+                placeholder = { Text(stringResource(R.string.settings_ai_key_placeholder)) },
+                singleLine = true,
+                visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { visible = !visible }) {
+                        Icon(
+                            if (visible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            contentDescription = null,
+                        )
+                    }
+                },
+            )
+            TextButton(onClick = {
+                onSave(input)
+                justSaved = true
+            }) {
+                Text(stringResource(R.string.settings_ai_key_save))
+            }
+        }
+        AnimatedVisibility(visible = justSaved) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Text(
+                    stringResource(R.string.settings_ai_key_saved),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
     }
 }

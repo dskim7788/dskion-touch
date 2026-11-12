@@ -111,6 +111,7 @@
     <string name="settings_ai_key_label">Gemini API 키</string>
     <string name="settings_ai_key_placeholder">AIza…</string>
     <string name="settings_ai_key_save">저장</string>
+    <string name="settings_ai_key_saved">저장됐어요</string>
     <string name="settings_ai_note">※ 키는 이 기기에만 저장되고, generativelanguage.googleapis.com 외에는 전송되지 않아요</string>
 
     <string name="monitored_apps_title">모니터링 허용 앱</string>
