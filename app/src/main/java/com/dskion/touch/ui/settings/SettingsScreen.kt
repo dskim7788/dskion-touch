@@ -130,9 +130,15 @@ private fun ApiKeyField(savedApiKey: String, onSave: (String) -> Unit) {
     // 실제로는 저장이 됐어도 눈에 보이는 확인이 전혀 없었기 때문. 누를 때마다 잠깐 체크
     // 표시를 보여준다.
     var justSaved by remember { mutableStateOf(false) }
-    // savedApiKey only has a real value once DataStore's first emission lands, so sync the
-    // field to it exactly once - after that, the field is the user's to edit.
-    LaunchedEffect(Unit) { input = savedApiKey }
+    // savedApiKey starts as "" (stateIn's seed value) and only becomes the real stored key once
+    // DataStore's first emission lands a moment later - keying on Unit (run once) could lose that
+    // race and leave the field permanently empty after navigating back to this screen. Keying on
+    // savedApiKey instead re-syncs whenever it changes, but stops once the user starts typing so
+    // it never clobbers an in-progress edit.
+    var hasUserEdited by remember { mutableStateOf(false) }
+    LaunchedEffect(savedApiKey) {
+        if (!hasUserEdited) input = savedApiKey
+    }
     LaunchedEffect(justSaved) {
         if (justSaved) {
             delay(1500)
@@ -144,7 +150,7 @@ private fun ApiKeyField(savedApiKey: String, onSave: (String) -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = input,
-                onValueChange = { input = it },
+                onValueChange = { input = it; hasUserEdited = true },
                 modifier = Modifier.weight(1f),
                 label = { Text(stringResource(R.string.settings_ai_key_label)) },
                 placeholder = { Text(stringResource(R.string.settings_ai_key_placeholder)) },
