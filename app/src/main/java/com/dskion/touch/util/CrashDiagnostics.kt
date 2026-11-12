@@ -57,23 +57,33 @@ object CrashDiagnostics {
 
     private data class ExitReasonInfo(val text: String, val timestampMillis: Long)
 
+    /** Reasons worth bothering the user about - excludes ordinary closes (swiped away from
+     * recents, user/system stopped the process, "OTHER") which [ApplicationExitInfo] reports
+     * just as faithfully as an actual crash, and which were being shown as if something had gone
+     * wrong even though nothing had. */
+    private val REPORTABLE_REASONS = setOf(
+        ApplicationExitInfo.REASON_CRASH,
+        ApplicationExitInfo.REASON_CRASH_NATIVE,
+        ApplicationExitInfo.REASON_ANR,
+        ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE,
+        ApplicationExitInfo.REASON_LOW_MEMORY,
+        ApplicationExitInfo.REASON_SIGNALED,
+    )
+
     private fun readLastExitReason(context: Context): ExitReasonInfo? {
         val activityManager = context.getSystemService(ActivityManager::class.java) ?: return null
         val info = runCatching {
             activityManager.getHistoricalProcessExitReasons(context.packageName, 0, 1).firstOrNull()
         }.getOrNull() ?: return null
+        if (info.reason !in REPORTABLE_REASONS) return null
 
         val reasonText = when (info.reason) {
             ApplicationExitInfo.REASON_CRASH -> "CRASH (처리되지 않은 예외)"
             ApplicationExitInfo.REASON_CRASH_NATIVE -> "CRASH_NATIVE (네이티브 크래시)"
             ApplicationExitInfo.REASON_ANR -> "ANR (응답 없음)"
-            ApplicationExitInfo.REASON_PERMISSION_CHANGE -> "PERMISSION_CHANGE (권한 변경)"
             ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "EXCESSIVE_RESOURCE_USAGE (자원 과다 사용)"
             ApplicationExitInfo.REASON_LOW_MEMORY -> "LOW_MEMORY (메모리 부족)"
             ApplicationExitInfo.REASON_SIGNALED -> "SIGNALED"
-            ApplicationExitInfo.REASON_USER_REQUESTED -> "USER_REQUESTED (사용자가 종료)"
-            ApplicationExitInfo.REASON_USER_STOPPED -> "USER_STOPPED"
-            ApplicationExitInfo.REASON_OTHER -> "OTHER"
             else -> "code=${info.reason}"
         }
         val trace = runCatching {
