@@ -1,11 +1,8 @@
 package com.dskion.touch.ui.home
 
 import android.Manifest
-import android.app.ActivityManager
-import android.app.ApplicationExitInfo
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
@@ -17,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -49,7 +45,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dskion.touch.R
-import com.dskion.touch.TouchApplication
 import com.dskion.touch.accessibility.TouchAccessibilityService
 import com.dskion.touch.core.model.ScreenSnapshot
 import com.dskion.touch.data.ManagerPersona
@@ -62,10 +57,6 @@ import com.dskion.touch.util.batteryOptimizationIntent
 import com.dskion.touch.util.overlaySettingsIntent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
-
-private const val CRASH_DIAG_PREFS_NAME = "crash_diagnostics"
-private const val KEY_LAST_SEEN_EXIT_TIMESTAMP = "last_seen_exit_timestamp"
 
 @Composable
 fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewModel(factory = factory)) {
@@ -85,61 +76,9 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
         viewModel.refreshPermissions(context)
     }
 
-    // 지난 실행에서 앱이 죽었으면 여기서 한 번 보여준다 - 개발 환경에 기기 로그 접근이 없어서,
-    // 이게 유일하게 실제 원인을 알 수 있는 방법이다. 두 출처를 같이 본다:
-    // 1) TouchApplication이 받아 적어둔 자바/코틀린 예외 - 우리 코드가 던진 경우에만 있음.
-    // 2) OS가 기억하는 "지난번에 왜 죽었는지"(ApplicationExitInfo) - 네이티브 크래시, ANR,
-    //    시스템이 강제 종료한 경우처럼 우리 핸들러가 아예 못 잡는 경우도 여기엔 남는다.
-    // ApplicationExitInfo는 OS가 계속 들고 있어서, 타임스탬프로 "이미 보여준 것"을 직접
-    // 구분하지 않으면 새로고침할 때마다(=매번 앱을 열 때마다) 같은 옛날 크래시를 영원히
-    // 다시 보여준다 - 실제로 그래서 반복해서 떴던 것.
-    var crashLog by remember { mutableStateOf<String?>(null) }
-    var exitTimestampToAck by remember { mutableStateOf<Long?>(null) }
-    LaunchedEffect(Unit) {
-        val prefs = context.getSharedPreferences(CRASH_DIAG_PREFS_NAME, Context.MODE_PRIVATE)
-        val lastSeenTimestamp = prefs.getLong(KEY_LAST_SEEN_EXIT_TIMESTAMP, 0L)
-
-        val ownCrash = File(context.filesDir, TouchApplication.CRASH_LOG_FILE_NAME)
-            .takeIf { it.exists() }
-            ?.let { runCatching { it.readText() }.getOrNull() }
-        val exitInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            readLastExitReason(context)?.takeIf { it.timestampMillis > lastSeenTimestamp }
-        } else {
-            null
-        }
-        exitTimestampToAck = exitInfo?.timestampMillis
-
-        crashLog = listOfNotNull(exitInfo?.text, ownCrash?.let { "[앱이 직접 기록한 예외]\n$it" })
-            .joinToString("\n\n")
-            .ifBlank { null }
-    }
-    crashLog?.let { log ->
-        AlertDialog(
-            onDismissRequest = {},
-            title = { Text(stringResource(R.string.home_crash_dialog_title)) },
-            text = {
-                Box(modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
-                    SelectionContainer {
-                        Text(log, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    runCatching { File(context.filesDir, TouchApplication.CRASH_LOG_FILE_NAME).delete() }
-                    exitTimestampToAck?.let { ts ->
-                        context.getSharedPreferences(CRASH_DIAG_PREFS_NAME, Context.MODE_PRIVATE)
-                            .edit()
-                            .putLong(KEY_LAST_SEEN_EXIT_TIMESTAMP, ts)
-                            .apply()
-                    }
-                    crashLog = null
-                }) {
-                    Text(stringResource(R.string.home_crash_dialog_confirm))
-                }
-            },
-        )
-    }
+    // 지난 실행에서 앱이 왜 죽었는지는 MainActivity.onCreate()에서 Compose보다 먼저,
+    // 네이티브 AlertDialog로 이미 보여준다(CrashDiagnostics) - 크래시 루프가 Compose 프레임
+    // 렌더링보다 빠를 때도 놓치지 않기 위함. 여기서 다시 보여주지 않는다.
 
     DisposableEffect(lifecycleOwner) {
         viewModel.refreshPermissions(context)
@@ -666,40 +605,3 @@ private fun ModeCard(
     }
 }
 
-private data class ExitReasonInfo(val text: String, val timestampMillis: Long)
-
-/** What [ActivityManager] remembers about why the app's last process ended - catches native
- * crashes, ANRs, and OS-initiated kills that never reach [TouchApplication]'s own
- * Thread.UncaughtExceptionHandler, so this is checked even when that file is empty. The OS keeps
- * this around across launches regardless of whether it was already shown, so the caller must
- * track [ExitReasonInfo.timestampMillis] itself to avoid re-showing the same old entry forever. */
-private fun readLastExitReason(context: Context): ExitReasonInfo? {
-    val activityManager = context.getSystemService(ActivityManager::class.java) ?: return null
-    val info = runCatching {
-        activityManager.getHistoricalProcessExitReasons(context.packageName, 0, 1).firstOrNull()
-    }.getOrNull() ?: return null
-
-    val reasonText = when (info.reason) {
-        ApplicationExitInfo.REASON_CRASH -> "CRASH (처리되지 않은 예외)"
-        ApplicationExitInfo.REASON_CRASH_NATIVE -> "CRASH_NATIVE (네이티브 크래시)"
-        ApplicationExitInfo.REASON_ANR -> "ANR (응답 없음)"
-        ApplicationExitInfo.REASON_PERMISSION_CHANGE -> "PERMISSION_CHANGE (권한 변경)"
-        ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "EXCESSIVE_RESOURCE_USAGE (자원 과다 사용)"
-        ApplicationExitInfo.REASON_LOW_MEMORY -> "LOW_MEMORY (메모리 부족)"
-        ApplicationExitInfo.REASON_SIGNALED -> "SIGNALED"
-        ApplicationExitInfo.REASON_USER_REQUESTED -> "USER_REQUESTED (사용자가 종료)"
-        ApplicationExitInfo.REASON_USER_STOPPED -> "USER_STOPPED"
-        ApplicationExitInfo.REASON_OTHER -> "OTHER"
-        else -> "code=${info.reason}"
-    }
-    val trace = runCatching {
-        info.traceInputStream?.bufferedReader()?.use { it.readText() }
-    }.getOrNull()
-
-    val text = buildString {
-        append("[마지막 종료 원인: $reasonText]")
-        info.description?.takeIf { it.isNotBlank() }?.let { append("\n설명: $it") }
-        trace?.takeIf { it.isNotBlank() }?.let { append("\n--- trace ---\n${it.take(4000)}") }
-    }
-    return ExitReasonInfo(text, info.timestamp)
-}

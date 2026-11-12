@@ -1,6 +1,7 @@
 package com.dskion.touch
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -12,6 +13,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.dskion.touch.ui.navigation.TouchNavHost
 import com.dskion.touch.ui.theme.TouchTheme
+import com.dskion.touch.util.CrashDiagnostics
 
 class MainActivity : ComponentActivity() {
 
@@ -19,9 +21,25 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Checked before installSplashScreen()/setContent() and shown with a native dialog (not
+        // Compose) so the user sees why the previous run died even if the app is crash-looping too
+        // fast for a Compose frame to ever get drawn.
+        val pendingCrashReport = runCatching { CrashDiagnostics.readPendingReport(this) }.getOrNull()
+
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        pendingCrashReport?.let { report ->
+            AlertDialog.Builder(this)
+                .setTitle(getString(R.string.home_crash_dialog_title))
+                .setMessage(report.text)
+                .setCancelable(false)
+                .setPositiveButton(getString(R.string.home_crash_dialog_confirm)) { _, _ ->
+                    CrashDiagnostics.acknowledge(this, report)
+                }
+                .show()
+        }
 
         // Needed for the accessibility service's foreground-service notification (milestone 3's
         // voice command keeps the mic working in the background only while the service is
