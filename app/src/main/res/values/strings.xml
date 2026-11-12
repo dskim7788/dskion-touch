@@ -119,6 +119,10 @@
 
     <string name="settings_voice_picker_title">매니저 목소리</string>
     <string name="settings_voice_picker_desc">매니저마다 어떤 AI 목소리로 말할지 골라보세요. 재생 버튼으로 미리 들어볼 수 있어요</string>
+
+    <string name="settings_voice_engine_title">매니저 음성 방식</string>
+    <string name="settings_voice_engine_ai_desc">AI 목소리(Gemini) 사용 중 - 더 자연스럽지만 네트워크와 무료 한도가 필요해요</string>
+    <string name="settings_voice_engine_device_desc">기기 기본 음성 사용 중 - 덜 자연스럽지만 네트워크/한도 걱정이 전혀 없어요</string>
     <string name="settings_voice_preview_action">미리 듣기</string>
     <string name="settings_voice_preview_failed">미리듣기 실패 - 키가 올바른지, 네트워크가 연결돼 있는지 확인해주세요</string>
 

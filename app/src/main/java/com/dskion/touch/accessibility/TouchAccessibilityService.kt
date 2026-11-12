@@ -32,6 +32,7 @@ import com.dskion.touch.data.CommandPhraseRepository
 import com.dskion.touch.data.EditableCommand
 import com.dskion.touch.data.ManagerPersona
 import com.dskion.touch.data.ManagerRepository
+import com.dskion.touch.data.ManagerVoiceEngine
 import com.dskion.touch.data.ModeRepository
 import com.dskion.touch.data.MonitoredAppsRepository
 import com.dskion.touch.data.OperatingMode
@@ -73,6 +74,11 @@ class TouchAccessibilityService : AccessibilityService() {
     private var currentPersona: ManagerPersona = ManagerPersona.FEMALE
     private var maleVoiceName: String = GeminiVoices.DEFAULT_MALE_VOICE
     private var femaleVoiceName: String = GeminiVoices.DEFAULT_FEMALE_VOICE
+
+    /** 설정에서 사용자가 직접 고르는 값 - DEVICE면 AI 키가 있어도 Gemini TTS를 아예
+     * 시도하지 않고 기기 기본 음성만 쓴다. 무료 한도를 스스로 아끼고 싶을 때 쓰라고
+     * 자동으로 줄이는 대신 명시적인 on/off로 뒀다. */
+    private var voiceEngine: ManagerVoiceEngine = ManagerVoiceEngine.AI
 
     /** Blank = AI 미설정, [managerReplyFor]가 기존 스크립트 대사로만 답한다. 설정에서 키를
      * 넣으면 실제 Gemini API(무료 티어)로 자유 대화가 된다 - 이 앱은 백엔드가 없어서 사용자
@@ -167,6 +173,9 @@ class TouchAccessibilityService : AccessibilityService() {
         }
         serviceScope.launch {
             managerRepository.femaleVoiceName.collect { name -> femaleVoiceName = name }
+        }
+        serviceScope.launch {
+            managerRepository.voiceEngine.collect { engine -> voiceEngine = engine }
         }
     }
 
@@ -385,7 +394,7 @@ class TouchAccessibilityService : AccessibilityService() {
      * the manager's own voice. */
     private suspend fun speakManagerReply(text: String) {
         val apiKey = managerApiKey
-        if (apiKey.isNotBlank()) {
+        if (apiKey.isNotBlank() && voiceEngine == ManagerVoiceEngine.AI) {
             val voiceName = if (currentPersona == ManagerPersona.MALE) maleVoiceName else femaleVoiceName
             val result = GeminiTtsClient.synthesize(apiKey, text, voiceName)
             if (result.isSuccess) {

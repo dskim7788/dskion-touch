@@ -36,6 +36,7 @@ import com.dskion.touch.R
 import com.dskion.touch.ai.GeminiVoiceOption
 import com.dskion.touch.ai.GeminiVoices
 import com.dskion.touch.data.ManagerPersona
+import com.dskion.touch.data.ManagerVoiceEngine
 import com.dskion.touch.ui.AppViewModelFactory
 import kotlinx.coroutines.delay
 
@@ -50,6 +51,7 @@ fun SettingsScreen(factory: AppViewModelFactory, viewModel: SettingsViewModel = 
     val femaleVoiceName by viewModel.femaleVoiceName.collectAsState()
     val previewState by viewModel.previewState.collectAsState()
     val lastAiError by viewModel.lastAiError.collectAsState()
+    val voiceEngine by viewModel.voiceEngine.collectAsState()
 
     Column(
         modifier = Modifier
@@ -153,6 +155,7 @@ fun SettingsScreen(factory: AppViewModelFactory, viewModel: SettingsViewModel = 
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    VoiceEngineRow(engine = voiceEngine, onSelect = viewModel::setVoiceEngine)
                     VoicePickerRow(
                         label = ManagerPersona.MALE.displayName,
                         selectedVoice = maleVoiceName,
@@ -176,6 +179,31 @@ fun SettingsScreen(factory: AppViewModelFactory, viewModel: SettingsViewModel = 
 }
 
 private const val VOICE_PREVIEW_TEXT = "안녕하세요, 라이더님! 오늘도 안전 운행 하세요."
+
+/** AI 음성(Gemini, 네트워크+무료 한도 필요)과 기기 기본 음성(완전히 로컬, 한도 없음)
+ * 중 매니저가 실제로 어떤 걸로 말할지 직접 고르는 스위치 - 자동으로 알아서 줄여주는
+ * 대신, 한도를 아끼고 싶으면 사용자가 명시적으로 끌 수 있게 한다. */
+@Composable
+private fun VoiceEngineRow(engine: ManagerVoiceEngine, onSelect: (ManagerVoiceEngine) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(stringResource(R.string.settings_voice_engine_title), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+            Text(
+                if (engine == ManagerVoiceEngine.AI) {
+                    stringResource(R.string.settings_voice_engine_ai_desc)
+                } else {
+                    stringResource(R.string.settings_voice_engine_device_desc)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(
+            checked = engine == ManagerVoiceEngine.AI,
+            onCheckedChange = { useAi -> onSelect(if (useAi) ManagerVoiceEngine.AI else ManagerVoiceEngine.DEVICE) },
+        )
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

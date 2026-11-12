@@ -8,6 +8,7 @@ import com.dskion.touch.ai.GeminiVoices
 import com.dskion.touch.data.AiChatRepository
 import com.dskion.touch.data.ManagerPersona
 import com.dskion.touch.data.ManagerRepository
+import com.dskion.touch.data.ManagerVoiceEngine
 import com.dskion.touch.voice.PcmPlayer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -42,6 +43,13 @@ class SettingsViewModel(
 
     val femaleVoiceName: StateFlow<String> = managerRepository.femaleVoiceName
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GeminiVoices.DEFAULT_FEMALE_VOICE)
+
+    val voiceEngine: StateFlow<ManagerVoiceEngine> = managerRepository.voiceEngine
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ManagerVoiceEngine.AI)
+
+    fun setVoiceEngine(engine: ManagerVoiceEngine) {
+        viewModelScope.launch { managerRepository.setVoiceEngine(engine) }
+    }
 
     /** The last thing that went wrong calling Gemini (text or voice), if anything - both AI calls
      * fail silently by design (fall back to scripted replies/local TTS) so a ride doesn't go
