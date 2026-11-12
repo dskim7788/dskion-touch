@@ -296,6 +296,12 @@ class TouchAccessibilityService : AccessibilityService() {
         vibrate(LISTEN_START_VIBRATION_MILLIS)
         ScreenStateHolder.setManagerChatActive(true)
         managerChatJob = serviceScope.launch {
+            // 켜자마자 매니저가 먼저 반갑게 인사부터 - 사용자가 뭔가 말해야 반응하는 게 아니라
+            // 대화가 시작됐다는 걸 바로 알 수 있게.
+            val greeting = managerReplyFor(null)
+            ScreenStateHolder.setVoiceStatus(greeting)
+            ttsSpeaker.speak(greeting)
+
             while (isActive) {
                 try {
                     val micGranted = ContextCompat.checkSelfPermission(this@TouchAccessibilityService, Manifest.permission.RECORD_AUDIO) ==
@@ -334,23 +340,25 @@ class TouchAccessibilityService : AccessibilityService() {
         if (ScreenStateHolder.isListening.value) ScreenStateHolder.setListening(false)
     }
 
-    /** AI 키가 설정돼 있으면 실제 Gemini API로 자유롭게 대화하고, 실패하거나(네트워크 오류,
-     * 타임아웃 등) 키가 없으면 기존 스크립트 대사로 자연스럽게 떨어진다 - 라이딩 중에는 "AI 응답
-     * 실패"보다 뭐라도 짧게 답해주는 게 낫다. */
+    /** [text] null = 대화를 막 시작해서 매니저가 먼저 인사를 건네야 하는 경우
+     * ([startManagerChatLoop] 참고). AI 키가 설정돼 있으면 실제 Gemini API로 자유롭게
+     * 대화하고(인사도 AI가 자연스럽게 지어서 하도록), 실패하거나(네트워크 오류, 타임아웃 등)
+     * 키가 없으면 기존 스크립트 대사로 자연스럽게 떨어진다 - 라이딩 중에는 "AI 응답 실패"보다
+     * 뭐라도 짧게 답해주는 게 낫다. */
     private suspend fun managerReplyFor(text: String?): String {
-        if (text == null) return ManagerLines.forGreeting()
         val apiKey = managerApiKey
         if (apiKey.isBlank()) return managerReplyForScripted(text)
 
+        val userMessage = text ?: GREETING_PROMPT
         val result = AiManagerClient.complete(
             apiKey = apiKey,
             systemPrompt = buildManagerSystemPrompt(),
             history = managerChatHistory.toList(),
-            userMessage = text,
+            userMessage = userMessage,
         )
         return result.fold(
             onSuccess = { reply ->
-                managerChatHistory.add("user" to text)
+                managerChatHistory.add("user" to userMessage)
                 managerChatHistory.add("assistant" to reply)
                 while (managerChatHistory.size > MAX_MANAGER_HISTORY_ENTRIES) managerChatHistory.removeAt(0)
                 reply
@@ -359,7 +367,8 @@ class TouchAccessibilityService : AccessibilityService() {
         )
     }
 
-    private fun managerReplyForScripted(text: String): String {
+    private fun managerReplyForScripted(text: String?): String {
+        if (text == null) return ManagerLines.forGreeting()
         val normalized = text.replace(" ", "")
         val asksForStats = listOf("몇건", "오늘", "수락", "거절", "확인", "리뷰").any(normalized::contains)
         return if (asksForStats) RideStatsHolder.summary() else ManagerLines.forGreeting()
@@ -639,6 +648,10 @@ class TouchAccessibilityService : AccessibilityService() {
         /** user+assistant 합쳐서 최대 이만큼만 맥락으로 들고 간다 - 라이딩 내내 무한히 쌓이면
          * 매 요청이 점점 느려지고(토큰 수 증가) 비용도 늘어난다. */
         private const val MAX_MANAGER_HISTORY_ENTRIES = 12
+
+        /** [managerReplyFor]가 text=null(대화 시작)일 때 AI에게 보내는 가짜 "사용자 메시지" -
+         * 대화 기록에도 그대로 남아 이후 맥락이 자연스럽게 이어진다. */
+        private const val GREETING_PROMPT = "(대화를 막 시작했어요. 먼저 반갑게 인사해주세요.)"
         private const val NOTIFICATION_CHANNEL_ID = "touch_service"
         private const val NOTIFICATION_ID = 1
 
