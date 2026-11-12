@@ -223,6 +223,50 @@ class TouchAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * The explicit "매니저와 대화하기" button on the Home tab - listens once (no countdown, since
+     * the user is already looking at the phone and just tapped a button, unlike the other voice
+     * paths) and always treats whatever was said as directed at the manager, regardless of
+     * whether it contains the "매니저" wake word - the button itself is the wake word here.
+     */
+    fun startManagerChat() {
+        val micGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!micGranted) {
+            ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_mic_required))
+            return
+        }
+        if (!managerVoiceChatEnabled) {
+            ScreenStateHolder.setVoiceStatus(getString(R.string.home_manager_chat_disabled))
+            return
+        }
+        if (ScreenStateHolder.isListening.value) return
+
+        ScreenStateHolder.setListening(true)
+        vibrate(LISTEN_START_VIBRATION_MILLIS)
+        VoiceRecognizer(this).startListening(
+            onResult = { text ->
+                val reply = managerReplyFor(text)
+                ScreenStateHolder.setVoiceStatus(reply)
+                ttsSpeaker.speak(reply)
+                vibrate()
+                ScreenStateHolder.setListening(false)
+            },
+            onError = { message ->
+                ScreenStateHolder.setVoiceStatus(message)
+                ScreenStateHolder.setListening(false)
+                vibrate()
+            },
+        )
+    }
+
+    private fun managerReplyFor(text: String?): String {
+        if (text == null) return ManagerLines.forGreeting()
+        val normalized = text.replace(" ", "")
+        val asksForStats = listOf("몇건", "오늘", "수락", "거절", "확인", "리뷰").any(normalized::contains)
+        return if (asksForStats) RideStatsHolder.summary() else ManagerLines.forGreeting()
+    }
+
     /** Starts/stops the hands-free loop based on the two things that decide whether it should be
      * running right now: 배달 모드 selected, and 배민/쿠팡이츠 actually in the foreground. Call
      * whenever either changes - it's a no-op if the desired state already matches. */
@@ -293,8 +337,7 @@ class TouchAccessibilityService : AccessibilityService() {
             // 아니면 그냥 가벼운 인사로 응답한다. 로컬 스크립트 기반이라 외부 API/네트워크는
             // 쓰지 않는다 - 진짜 자유 대화가 아니라 정해진 대사 중 하나를 고르는 수준.
             if (normalized.contains("매니저") && managerVoiceChatEnabled) {
-                val asksForStats = listOf("몇건", "오늘", "수락", "거절", "확인", "리뷰").any(normalized::contains)
-                val reply = if (asksForStats) RideStatsHolder.summary() else ManagerLines.forGreeting()
+                val reply = managerReplyFor(text)
                 ScreenStateHolder.setVoiceStatus(reply)
                 ttsSpeaker.speak(reply)
                 vibrate()

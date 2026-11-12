@@ -8,6 +8,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dskion.touch.accessibility.ScreenStateHolder
 import com.dskion.touch.core.model.ScreenSnapshot
+import com.dskion.touch.data.ManagerPersona
+import com.dskion.touch.data.ManagerRepository
 import com.dskion.touch.data.ModeRepository
 import com.dskion.touch.data.MonitoredAppsRepository
 import com.dskion.touch.data.OperatingMode
@@ -30,6 +32,7 @@ data class PermissionState(
 class HomeViewModel(
     private val modeRepository: ModeRepository,
     private val monitoredAppsRepository: MonitoredAppsRepository,
+    private val managerRepository: ManagerRepository,
 ) : ViewModel() {
 
     var permissionState by mutableStateOf(PermissionState())
@@ -42,6 +45,12 @@ class HomeViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MonitoredAppsRepository.DEFAULT_PACKAGES)
 
     val overlayEnabled: StateFlow<Boolean> = modeRepository.overlayEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val managerPersona: StateFlow<ManagerPersona> = managerRepository.persona
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ManagerPersona.FEMALE)
+
+    val managerVoiceChatEnabled: StateFlow<Boolean> = managerRepository.voiceChatEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
     val serviceRunning: StateFlow<Boolean> = ScreenStateHolder.serviceRunning

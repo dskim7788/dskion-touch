@@ -44,7 +44,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dskion.touch.R
+import com.dskion.touch.accessibility.TouchAccessibilityService
 import com.dskion.touch.core.model.ScreenSnapshot
+import com.dskion.touch.data.ManagerPersona
 import com.dskion.touch.data.OperatingMode
 import com.dskion.touch.ui.AppViewModelFactory
 import com.dskion.touch.ui.theme.StatusGranted
@@ -61,6 +63,8 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
     val lifecycleOwner = LocalLifecycleOwner.current
     val mode by viewModel.mode.collectAsState()
     val overlayEnabled by viewModel.overlayEnabled.collectAsState()
+    val managerPersona by viewModel.managerPersona.collectAsState()
+    val managerVoiceChatEnabled by viewModel.managerVoiceChatEnabled.collectAsState()
     val monitoredPackages by viewModel.monitoredPackages.collectAsState()
     val serviceRunning by viewModel.serviceRunning.collectAsState()
     val latestSnapshot by viewModel.latestSnapshot.collectAsState()
@@ -116,6 +120,8 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
                 snapshot = latestSnapshot,
                 voiceStatus = voiceStatus,
             )
+
+            ManagerChatCard(persona = managerPersona, voiceChatEnabled = managerVoiceChatEnabled)
 
             val state = viewModel.permissionState
             val allPermissionsGranted = state.micGranted && state.accessibilityGranted &&
@@ -179,6 +185,54 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
                 onAdd = viewModel::addMonitoredApp,
                 onRemove = viewModel::removeMonitoredApp,
             )
+    }
+}
+
+/** One-tap entry point to talk to the 매니저 - listens once and replies via TTS, no need to say
+ * the "매니저" wake word first since tapping this button already is the wake word. */
+@Composable
+private fun ManagerChatCard(persona: ManagerPersona, voiceChatEnabled: Boolean) {
+    val avatarRes = if (persona == ManagerPersona.MALE) R.drawable.manager_male else R.drawable.manager_female
+
+    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Image(
+                painter = painterResource(avatarRes),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp)),
+                contentScale = ContentScale.Crop,
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.home_manager_chat_title, persona.displayName),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    if (voiceChatEnabled) {
+                        stringResource(R.string.settings_manager_desc)
+                    } else {
+                        stringResource(R.string.home_manager_chat_disabled_desc)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            FilledIconButton(
+                onClick = { TouchAccessibilityService.instance?.startManagerChat() },
+                enabled = voiceChatEnabled,
+            ) {
+                Icon(Icons.Filled.Mic, contentDescription = stringResource(R.string.home_manager_chat_action))
+            }
+        }
     }
 }
 

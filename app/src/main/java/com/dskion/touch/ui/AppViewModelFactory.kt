@@ -19,7 +19,7 @@ class AppViewModelFactory(private val application: Application) : ViewModelProvi
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when (modelClass) {
-        HomeViewModel::class.java -> HomeViewModel(modeRepository, monitoredAppsRepository) as T
+        HomeViewModel::class.java -> HomeViewModel(modeRepository, monitoredAppsRepository, managerRepository) as T
         CommandsViewModel::class.java -> CommandsViewModel(commandPhraseRepository) as T
         SettingsViewModel::class.java -> SettingsViewModel(managerRepository) as T
         else -> throw IllegalArgumentException("Unknown ViewModel class: $modelClass")
