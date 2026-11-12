@@ -21,9 +21,11 @@ import com.dskion.touch.R
 import com.dskion.touch.accessibility.command.AcceptDispatchCommand
 import com.dskion.touch.accessibility.command.NewDispatchCommand
 import com.dskion.touch.accessibility.command.RespondDispatchCommand
+import com.dskion.touch.ai.AiManagerClient
 import com.dskion.touch.core.match.CommandMatcher
 import com.dskion.touch.core.model.ScreenSnapshot
 import com.dskion.touch.core.rules.BaeminRules
+import com.dskion.touch.data.AiChatRepository
 import com.dskion.touch.data.CommandPhraseRepository
 import com.dskion.touch.data.EditableCommand
 import com.dskion.touch.data.ManagerPersona
@@ -63,7 +65,18 @@ class TouchAccessibilityService : AccessibilityService() {
     private val modeRepository = ModeRepository(this)
     private val monitoredAppsRepository = MonitoredAppsRepository(this)
     private val managerRepository = ManagerRepository(this)
+    private val aiChatRepository = AiChatRepository(this)
     private var managerVoiceChatEnabled = true
+    private var currentPersona: ManagerPersona = ManagerPersona.FEMALE
+
+    /** Blank = AI 미설정, [managerReplyFor]가 기존 스크립트 대사로만 답한다. 설정에서 키를
+     * 넣으면 실제 Anthropic API로 자유 대화가 된다 - 이 앱은 백엔드가 없어서 사용자 본인 키를
+     * 기기에서 바로 쓴다. */
+    private var managerApiKey: String = ""
+
+    /** 매니저와의 대화 맥락 - [startManagerChatLoop]를 켤 때마다 비워서 새 대화로 시작한다.
+     * 세션 메모리일 뿐 저장하지 않는다(계정/백엔드가 없음). */
+    private val managerChatHistory = mutableListOf<Pair<String, String>>()
     private val newDispatchCommand = NewDispatchCommand(this)
     private val acceptDispatchCommand = AcceptDispatchCommand(this)
     private val respondDispatchCommand = RespondDispatchCommand(this)
@@ -131,6 +144,7 @@ class TouchAccessibilityService : AccessibilityService() {
         }
         serviceScope.launch {
             managerRepository.persona.collect { persona ->
+                currentPersona = persona
                 ttsSpeaker.setPitch(if (persona == ManagerPersona.MALE) MALE_PITCH else FEMALE_PITCH)
             }
         }
@@ -139,6 +153,9 @@ class TouchAccessibilityService : AccessibilityService() {
                 managerVoiceChatEnabled = enabled
                 if (!enabled) stopManagerChatLoop()
             }
+        }
+        serviceScope.launch {
+            aiChatRepository.apiKey.collect { key -> managerApiKey = key }
         }
     }
 
@@ -260,6 +277,7 @@ class TouchAccessibilityService : AccessibilityService() {
     private fun startManagerChatLoop() {
         if (managerChatJob?.isActive == true) return
         stopContinuousListening()
+        managerChatHistory.clear()
         vibrate(LISTEN_START_VIBRATION_MILLIS)
         ScreenStateHolder.setManagerChatActive(true)
         managerChatJob = serviceScope.launch {
@@ -301,12 +319,49 @@ class TouchAccessibilityService : AccessibilityService() {
         if (ScreenStateHolder.isListening.value) ScreenStateHolder.setListening(false)
     }
 
-    private fun managerReplyFor(text: String?): String {
+    /** AI 키가 설정돼 있으면 실제 Anthropic API로 자유롭게 대화하고, 실패하거나(네트워크 오류,
+     * 타임아웃 등) 키가 없으면 기존 스크립트 대사로 자연스럽게 떨어진다 - 라이딩 중에는 "AI 응답
+     * 실패"보다 뭐라도 짧게 답해주는 게 낫다. */
+    private suspend fun managerReplyFor(text: String?): String {
         if (text == null) return ManagerLines.forGreeting()
+        val apiKey = managerApiKey
+        if (apiKey.isBlank()) return managerReplyForScripted(text)
+
+        val result = AiManagerClient.complete(
+            apiKey = apiKey,
+            systemPrompt = buildManagerSystemPrompt(),
+            history = managerChatHistory.toList(),
+            userMessage = text,
+        )
+        return result.fold(
+            onSuccess = { reply ->
+                managerChatHistory.add("user" to text)
+                managerChatHistory.add("assistant" to reply)
+                while (managerChatHistory.size > MAX_MANAGER_HISTORY_ENTRIES) managerChatHistory.removeAt(0)
+                reply
+            },
+            onFailure = { managerReplyForScripted(text) },
+        )
+    }
+
+    private fun managerReplyForScripted(text: String): String {
         val normalized = text.replace(" ", "")
         val asksForStats = listOf("몇건", "오늘", "수락", "거절", "확인", "리뷰").any(normalized::contains)
         return if (asksForStats) RideStatsHolder.summary() else ManagerLines.forGreeting()
     }
+
+    /** AI가 짧고 자연스럽게, 라이더의 현재 상황(핸들에서 손을 못 떼는 중, 화면을 못 보는 중)을
+     * 감안해서 답하도록 하는 시스템 프롬프트 - 루틴 라이더의 "AI 루틴 관리" 기능과 같은 모델/
+     * 제공사(Anthropic)를 쓴다. */
+    private fun buildManagerSystemPrompt(): String = """
+        당신은 배달 라이더용 음성 보조 앱 "dskion touch"의 AI 매니저 "${currentPersona.displayName}"입니다.
+        지금 사용자는 전기자전거를 타고 두 손을 핸들에서 떼지 않은 채 음성만으로 당신과 대화하고 있고,
+        화면을 보거나 타이핑할 수 없습니다.
+        - 답변은 항상 1~2문장으로 짧고 자연스럽게 말하세요. 길게 설명하지 마세요.
+        - 배달 라이더의 하루를 챙기는 다정한 비서처럼 칭찬, 격려, 가벼운 수다, 안전 운행 당부를 해주세요.
+        - 의학적/법률적 조언이나 확실하지 않은 사실은 지어내지 말고 모른다고 말하세요.
+        - 오늘 이 앱 세션에서 집계된 기록(기기 재시작 시 초기화되는 임시 집계): ${RideStatsHolder.summary()}
+    """.trimIndent()
 
     /** Starts/stops the hands-free loop based on the two things that decide whether it should be
      * running right now: 배달 모드 selected, and 배민/쿠팡이츠 actually in the foreground. Call
@@ -375,9 +430,9 @@ class TouchAccessibilityService : AccessibilityService() {
         if (text != null) {
             val normalized = text.replace(" ", "")
 
-            // "매니저" 호출 - 비서 역할. 세션 동안의 수락/거절 집계를 읽어주거나(물어보면),
-            // 아니면 그냥 가벼운 인사로 응답한다. 로컬 스크립트 기반이라 외부 API/네트워크는
-            // 쓰지 않는다 - 진짜 자유 대화가 아니라 정해진 대사 중 하나를 고르는 수준.
+            // "매니저" 호출 - 비서 역할. 설정에서 AI 키를 넣었으면 managerReplyFor가 실제
+            // Anthropic API로 자유 대화를 하고, 안 넣었으면 세션 집계 읽어주기/인사 같은 정해진
+            // 대사로 답한다 (managerReplyForScripted).
             if (normalized.contains("매니저") && managerVoiceChatEnabled) {
                 val reply = managerReplyFor(text)
                 ScreenStateHolder.setVoiceStatus(reply)
@@ -566,6 +621,10 @@ class TouchAccessibilityService : AccessibilityService() {
         private const val CONTINUOUS_LISTEN_GAP_MILLIS = 400L
         private const val MALE_PITCH = 0.85f
         private const val FEMALE_PITCH = 1.15f
+
+        /** user+assistant 합쳐서 최대 이만큼만 맥락으로 들고 간다 - 라이딩 내내 무한히 쌓이면
+         * 매 요청이 점점 느려지고(토큰 수 증가) 비용도 늘어난다. */
+        private const val MAX_MANAGER_HISTORY_ENTRIES = 12
         private const val NOTIFICATION_CHANNEL_ID = "touch_service"
         private const val NOTIFICATION_ID = 1
 

@@ -3,6 +3,7 @@ package com.dskion.touch.ui
 import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.dskion.touch.data.AiChatRepository
 import com.dskion.touch.data.CommandPhraseRepository
 import com.dskion.touch.data.ManagerRepository
 import com.dskion.touch.data.ModeRepository
@@ -16,12 +17,13 @@ class AppViewModelFactory(private val application: Application) : ViewModelProvi
     private val commandPhraseRepository by lazy { CommandPhraseRepository(application) }
     private val monitoredAppsRepository by lazy { MonitoredAppsRepository(application) }
     private val managerRepository by lazy { ManagerRepository(application) }
+    private val aiChatRepository by lazy { AiChatRepository(application) }
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when (modelClass) {
         HomeViewModel::class.java -> HomeViewModel(modeRepository, monitoredAppsRepository, managerRepository) as T
         CommandsViewModel::class.java -> CommandsViewModel(commandPhraseRepository) as T
-        SettingsViewModel::class.java -> SettingsViewModel(managerRepository) as T
+        SettingsViewModel::class.java -> SettingsViewModel(managerRepository, aiChatRepository) as T
         else -> throw IllegalArgumentException("Unknown ViewModel class: $modelClass")
     }
 }

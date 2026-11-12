@@ -101,7 +101,14 @@
     <string name="settings_manager_desc">운행 중 음성으로 칭찬·안내를 해주는 매니저 캐릭터예요</string>
     <string name="settings_voice_chat_title">음성 채팅</string>
     <string name="settings_voice_chat_desc">배차 수락/거절 등 실행 결과 뒤에 매니저의 칭찬·격려 한마디를 붙여서 말해줘요. "매니저"라고 부르면 오늘 수락/거절 건수도 알려줘요</string>
-    <string name="settings_voice_chat_note">※ 외부 인터넷 연결 없이 기기 안에서만 동작하는 정해진 대사 기반이에요 - 자유 대화형 AI는 아니에요</string>
+    <string name="settings_voice_chat_note">※ 아래 AI 키를 넣지 않으면 외부 인터넷 연결 없이 기기 안에서만 동작하는 정해진 대사로 답해요</string>
+
+    <string name="settings_ai_title">AI 대화 (선택)</string>
+    <string name="settings_ai_desc">Anthropic API 키를 넣으면 매니저가 정해진 대사 대신 실제 AI로 자유롭게 대화해요. 사용량만큼 요금이 발생하고, 키를 비워두면 기존처럼 오프라인 대사로만 동작해요.</string>
+    <string name="settings_ai_key_label">Anthropic API 키</string>
+    <string name="settings_ai_key_placeholder">sk-ant-…</string>
+    <string name="settings_ai_key_save">저장</string>
+    <string name="settings_ai_note">※ 키는 이 기기에만 저장되고, api.anthropic.com 외에는 전송되지 않아요</string>
 
     <string name="monitored_apps_title">모니터링 허용 앱</string>
     <string name="monitored_apps_desc">여기 없는 앱(은행·증권 앱 등)의 화면은 전혀 읽지 않아요</string>
