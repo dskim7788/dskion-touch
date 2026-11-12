@@ -48,6 +48,7 @@ fun SettingsScreen(factory: AppViewModelFactory, viewModel: SettingsViewModel = 
     val savedApiKey by viewModel.apiKey.collectAsState()
     val maleVoiceName by viewModel.maleVoiceName.collectAsState()
     val femaleVoiceName by viewModel.femaleVoiceName.collectAsState()
+    val previewState by viewModel.previewState.collectAsState()
 
     Column(
         modifier = Modifier
@@ -141,14 +142,18 @@ fun SettingsScreen(factory: AppViewModelFactory, viewModel: SettingsViewModel = 
                     VoicePickerRow(
                         label = ManagerPersona.MALE.displayName,
                         selectedVoice = maleVoiceName,
+                        previewState = previewState,
                         onSelect = viewModel::setMaleVoiceName,
                         onPreview = { voiceName -> viewModel.previewVoice(voiceName, VOICE_PREVIEW_TEXT) },
+                        onFailureShown = viewModel::clearPreviewFailure,
                     )
                     VoicePickerRow(
                         label = ManagerPersona.FEMALE.displayName,
                         selectedVoice = femaleVoiceName,
+                        previewState = previewState,
                         onSelect = viewModel::setFemaleVoiceName,
                         onPreview = { voiceName -> viewModel.previewVoice(voiceName, VOICE_PREVIEW_TEXT) },
+                        onFailureShown = viewModel::clearPreviewFailure,
                     )
                 }
             }
@@ -163,11 +168,24 @@ private const val VOICE_PREVIEW_TEXT = "안녕하세요, 라이더님! 오늘도
 private fun VoicePickerRow(
     label: String,
     selectedVoice: String,
+    previewState: VoicePreviewState,
     onSelect: (String) -> Unit,
     onPreview: (String) -> Unit,
+    onFailureShown: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selectedOption = GeminiVoices.options.find { it.voiceName == selectedVoice }
+    val isLoading = previewState is VoicePreviewState.Loading && previewState.voiceName == selectedVoice
+    val isFailed = previewState is VoicePreviewState.Failed && previewState.voiceName == selectedVoice
+
+    // 실패 표시를 잠깐 보여주고 자동으로 지운다 - 버튼을 눌러도 반응이 없어 보여서 "테스트가
+    // 안 된다"는 혼란이 있었다. 지금은 최소한 뭐가 잘못됐는지는 보인다.
+    LaunchedEffect(isFailed) {
+        if (isFailed) {
+            delay(2500)
+            onFailureShown()
+        }
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
@@ -196,9 +214,20 @@ private fun VoicePickerRow(
                     }
                 }
             }
-            IconButton(onClick = { onPreview(selectedVoice) }) {
-                Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.settings_voice_preview_action))
+            IconButton(onClick = { onPreview(selectedVoice) }, enabled = !isLoading) {
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.settings_voice_preview_action))
+                }
             }
+        }
+        if (isFailed) {
+            Text(
+                stringResource(R.string.settings_voice_preview_failed),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
+            )
         }
     }
 }
