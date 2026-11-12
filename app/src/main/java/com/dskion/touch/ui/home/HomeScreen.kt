@@ -174,6 +174,7 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
                 persona = managerPersona,
                 voiceChatEnabled = managerVoiceChatEnabled,
                 chatActive = managerChatActive,
+                serviceRunning = serviceRunning,
             )
 
             val state = viewModel.permissionState
@@ -245,7 +246,12 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
  * listen→reply→listen loop (no need to say the "매니저" wake word, since turning this on already
  * is the wake word) that keeps running until toggled off again. */
 @Composable
-private fun ManagerChatCard(persona: ManagerPersona, voiceChatEnabled: Boolean, chatActive: Boolean) {
+private fun ManagerChatCard(
+    persona: ManagerPersona,
+    voiceChatEnabled: Boolean,
+    chatActive: Boolean,
+    serviceRunning: Boolean,
+) {
     val avatarRes = if (persona == ManagerPersona.MALE) R.drawable.manager_male else R.drawable.manager_female
 
     Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
@@ -272,6 +278,7 @@ private fun ManagerChatCard(persona: ManagerPersona, voiceChatEnabled: Boolean, 
                 )
                 Text(
                     when {
+                        !serviceRunning -> stringResource(R.string.home_manager_chat_service_off_desc)
                         !voiceChatEnabled -> stringResource(R.string.home_manager_chat_disabled_desc)
                         chatActive -> stringResource(R.string.home_manager_chat_active_desc)
                         else -> stringResource(R.string.settings_manager_desc)
@@ -282,7 +289,7 @@ private fun ManagerChatCard(persona: ManagerPersona, voiceChatEnabled: Boolean, 
             }
             FilledIconButton(
                 onClick = { TouchAccessibilityService.instance?.toggleManagerChat() },
-                enabled = voiceChatEnabled,
+                enabled = voiceChatEnabled && serviceRunning,
                 colors = if (chatActive) {
                     IconButtonDefaults.filledIconButtonColors(containerColor = StatusGranted)
                 } else {
