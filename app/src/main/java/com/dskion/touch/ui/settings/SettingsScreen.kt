@@ -158,6 +158,7 @@ fun SettingsScreen(factory: AppViewModelFactory, viewModel: SettingsViewModel = 
 
 private const val VOICE_PREVIEW_TEXT = "안녕하세요, 라이더님! 오늘도 안전 운행 하세요."
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun VoicePickerRow(
     label: String,
