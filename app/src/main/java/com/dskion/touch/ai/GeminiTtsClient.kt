@@ -73,7 +73,7 @@ object GeminiTtsClient {
                 val responseText = stream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
                 if (status !in 200..299) {
                     Log.e(LOG_TAG, "Gemini TTS error $status: $responseText")
-                    AiCallDiagnostics.record("GeminiTtsClient($MODEL)", "HTTP $status - ${responseText.take(300)}")
+                    AiCallDiagnostics.record("GeminiTtsClient($MODEL)", AiCallDiagnostics.describeHttpError(status, responseText))
                     error("HTTP $status")
                 }
 

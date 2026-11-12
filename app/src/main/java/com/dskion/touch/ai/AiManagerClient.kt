@@ -77,7 +77,7 @@ object AiManagerClient {
 
             if (status !in 200..299) {
                 Log.e(LOG_TAG, "Gemini API error $status: $responseText")
-                AiCallDiagnostics.record("AiManagerClient($MODEL)", "HTTP $status - ${responseText.take(300)}")
+                AiCallDiagnostics.record("AiManagerClient($MODEL)", AiCallDiagnostics.describeHttpError(status, responseText))
                 error("HTTP $status")
             }
 

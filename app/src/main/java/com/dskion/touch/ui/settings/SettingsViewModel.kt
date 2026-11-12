@@ -77,6 +77,10 @@ class SettingsViewModel(
     private val _previewState = MutableStateFlow<VoicePreviewState>(VoicePreviewState.Idle)
     val previewState: StateFlow<VoicePreviewState> = _previewState
 
+    // 미리듣기는 항상 같은 샘플 문장이라, 같은 목소리를 여러 번 눌러도 매번 새로 호출할 필요가
+    // 없다 - 특히 무료 티어 한도(429)를 가장 빨리 깎아먹는 게 바로 이 반복 테스트였다.
+    private val previewCache = mutableMapOf<String, GeminiTtsClient.PcmAudio>()
+
     /** Lets the user hear a voice option before committing to it - uses whatever API key is
      * currently saved, so it only works once a key has been entered (and saved). Tapping preview
      * used to do nothing visible on failure (bad key, network error, ...), which looked exactly
@@ -84,6 +88,10 @@ class SettingsViewModel(
      * state if the request doesn't come back with audio. */
     fun previewVoice(voiceName: String, sampleText: String) {
         viewModelScope.launch {
+            previewCache[voiceName]?.let { cached ->
+                PcmPlayer.play(cached.pcm, cached.sampleRateHz)
+                return@launch
+            }
             val key = apiKey.value
             if (key.isBlank()) {
                 _previewState.value = VoicePreviewState.Failed(voiceName)
@@ -93,6 +101,7 @@ class SettingsViewModel(
             val audio = GeminiTtsClient.synthesize(key, sampleText, voiceName).getOrNull()
             if (audio != null) {
                 _previewState.value = VoicePreviewState.Idle
+                previewCache[voiceName] = audio
                 PcmPlayer.play(audio.pcm, audio.sampleRateHz)
             } else {
                 _previewState.value = VoicePreviewState.Failed(voiceName)
