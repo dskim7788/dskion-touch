@@ -1,8 +1,11 @@
 package com.dskion.touch.ui.home
 
 import android.Manifest
+import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
@@ -79,12 +82,24 @@ fun HomeScreen(factory: AppViewModelFactory, viewModel: HomeViewModel = viewMode
         viewModel.refreshPermissions(context)
     }
 
-    // 지난 실행에서 앱이 죽었으면(TouchApplication이 받아 적어둔 것) 여기서 한 번 보여준다 -
-    // 개발 환경에 기기 로그 접근이 없어서, 이게 유일하게 실제 원인을 알 수 있는 방법이다.
+    // 지난 실행에서 앱이 죽었으면 여기서 한 번 보여준다 - 개발 환경에 기기 로그 접근이 없어서,
+    // 이게 유일하게 실제 원인을 알 수 있는 방법이다. 두 출처를 같이 본다:
+    // 1) TouchApplication이 받아 적어둔 자바/코틀린 예외 - 우리 코드가 던진 경우에만 있음.
+    // 2) OS가 기억하는 "지난번에 왜 죽었는지"(ApplicationExitInfo) - 네이티브 크래시, ANR,
+    //    시스템이 강제 종료한 경우처럼 우리 핸들러가 아예 못 잡는 경우도 여기엔 남는다.
     var crashLog by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
-        val file = File(context.filesDir, TouchApplication.CRASH_LOG_FILE_NAME)
-        if (file.exists()) crashLog = runCatching { file.readText() }.getOrNull()
+        val ownCrash = File(context.filesDir, TouchApplication.CRASH_LOG_FILE_NAME)
+            .takeIf { it.exists() }
+            ?.let { runCatching { it.readText() }.getOrNull() }
+        val exitReason = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            readLastExitReason(context)
+        } else {
+            null
+        }
+        crashLog = listOfNotNull(exitReason, ownCrash?.let { "[앱이 직접 기록한 예외]\n$it" })
+            .joinToString("\n\n")
+            .ifBlank { null }
     }
     crashLog?.let { log ->
         AlertDialog(
@@ -623,5 +638,38 @@ private fun ModeCard(
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = contentColor)
             Text(description, style = MaterialTheme.typography.bodySmall, color = contentColor)
         }
+    }
+}
+
+/** What [ActivityManager] remembers about why the app's last process ended - catches native
+ * crashes, ANRs, and OS-initiated kills that never reach [TouchApplication]'s own
+ * Thread.UncaughtExceptionHandler, so this is checked even when that file is empty. */
+private fun readLastExitReason(context: Context): String? {
+    val activityManager = context.getSystemService(ActivityManager::class.java) ?: return null
+    val info = runCatching {
+        activityManager.getHistoricalProcessExitReasons(context.packageName, 0, 1).firstOrNull()
+    }.getOrNull() ?: return null
+
+    val reasonText = when (info.reason) {
+        ApplicationExitInfo.REASON_CRASH -> "CRASH (처리되지 않은 예외)"
+        ApplicationExitInfo.REASON_CRASH_NATIVE -> "CRASH_NATIVE (네이티브 크래시)"
+        ApplicationExitInfo.REASON_ANR -> "ANR (응답 없음)"
+        ApplicationExitInfo.REASON_PERMISSION_CHANGE -> "PERMISSION_CHANGE (권한 변경)"
+        ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "EXCESSIVE_RESOURCE_USAGE (자원 과다 사용)"
+        ApplicationExitInfo.REASON_LOW_MEMORY -> "LOW_MEMORY (메모리 부족)"
+        ApplicationExitInfo.REASON_SIGNALED -> "SIGNALED"
+        ApplicationExitInfo.REASON_USER_REQUESTED -> "USER_REQUESTED (사용자가 종료)"
+        ApplicationExitInfo.REASON_USER_STOPPED -> "USER_STOPPED"
+        ApplicationExitInfo.REASON_OTHER -> "OTHER"
+        else -> "code=${info.reason}"
+    }
+    val trace = runCatching {
+        info.traceInputStream?.bufferedReader()?.use { it.readText() }
+    }.getOrNull()
+
+    return buildString {
+        append("[마지막 종료 원인: $reasonText]")
+        info.description?.takeIf { it.isNotBlank() }?.let { append("\n설명: $it") }
+        trace?.takeIf { it.isNotBlank() }?.let { append("\n--- trace ---\n${it.take(4000)}") }
     }
 }
