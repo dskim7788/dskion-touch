@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -32,6 +33,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dskion.touch.R
+import com.dskion.touch.ai.GeminiVoiceOption
+import com.dskion.touch.ai.GeminiVoices
 import com.dskion.touch.data.ManagerPersona
 import com.dskion.touch.ui.AppViewModelFactory
 import kotlinx.coroutines.delay
@@ -43,6 +46,8 @@ fun SettingsScreen(factory: AppViewModelFactory, viewModel: SettingsViewModel = 
     val persona by viewModel.persona.collectAsState()
     val voiceChatEnabled by viewModel.voiceChatEnabled.collectAsState()
     val savedApiKey by viewModel.apiKey.collectAsState()
+    val maleVoiceName by viewModel.maleVoiceName.collectAsState()
+    val femaleVoiceName by viewModel.femaleVoiceName.collectAsState()
 
     Column(
         modifier = Modifier
@@ -119,8 +124,86 @@ fun SettingsScreen(factory: AppViewModelFactory, viewModel: SettingsViewModel = 
                 )
             }
         }
+
+        if (savedApiKey.isNotBlank()) {
+            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(
+                        stringResource(R.string.settings_voice_picker_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        stringResource(R.string.settings_voice_picker_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    VoicePickerRow(
+                        label = ManagerPersona.MALE.displayName,
+                        selectedVoice = maleVoiceName,
+                        onSelect = viewModel::setMaleVoiceName,
+                        onPreview = { voiceName -> viewModel.previewVoice(voiceName, VOICE_PREVIEW_TEXT) },
+                    )
+                    VoicePickerRow(
+                        label = ManagerPersona.FEMALE.displayName,
+                        selectedVoice = femaleVoiceName,
+                        onSelect = viewModel::setFemaleVoiceName,
+                        onPreview = { voiceName -> viewModel.previewVoice(voiceName, VOICE_PREVIEW_TEXT) },
+                    )
+                }
+            }
+        }
     }
 }
+
+private const val VOICE_PREVIEW_TEXT = "안녕하세요, 라이더님! 오늘도 안전 운행 하세요."
+
+@Composable
+private fun VoicePickerRow(
+    label: String,
+    selectedVoice: String,
+    onSelect: (String) -> Unit,
+    onPreview: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedOption = GeminiVoices.options.find { it.voiceName == selectedVoice }
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = it },
+                modifier = Modifier.weight(1f),
+            ) {
+                OutlinedTextField(
+                    value = voiceOptionLabel(selectedOption, selectedVoice),
+                    onValueChange = {},
+                    readOnly = true,
+                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                )
+                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    GeminiVoices.options.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(voiceOptionLabel(option, option.voiceName)) },
+                            onClick = {
+                                onSelect(option.voiceName)
+                                expanded = false
+                            },
+                        )
+                    }
+                }
+            }
+            IconButton(onClick = { onPreview(selectedVoice) }) {
+                Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.settings_voice_preview_action))
+            }
+        }
+    }
+}
+
+private fun voiceOptionLabel(option: GeminiVoiceOption?, fallbackName: String): String =
+    option?.let { "${it.voiceName} · ${it.tone}" } ?: fallbackName
 
 @Composable
 private fun ApiKeyField(savedApiKey: String, onSave: (String) -> Unit) {

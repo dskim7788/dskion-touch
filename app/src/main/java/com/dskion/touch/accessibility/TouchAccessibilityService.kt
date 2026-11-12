@@ -23,6 +23,7 @@ import com.dskion.touch.accessibility.command.NewDispatchCommand
 import com.dskion.touch.accessibility.command.RespondDispatchCommand
 import com.dskion.touch.ai.AiManagerClient
 import com.dskion.touch.ai.GeminiTtsClient
+import com.dskion.touch.ai.GeminiVoices
 import com.dskion.touch.core.match.CommandMatcher
 import com.dskion.touch.core.model.ScreenSnapshot
 import com.dskion.touch.core.rules.BaeminRules
@@ -70,6 +71,8 @@ class TouchAccessibilityService : AccessibilityService() {
     private val aiChatRepository = AiChatRepository(this)
     private var managerVoiceChatEnabled = true
     private var currentPersona: ManagerPersona = ManagerPersona.FEMALE
+    private var maleVoiceName: String = GeminiVoices.DEFAULT_MALE_VOICE
+    private var femaleVoiceName: String = GeminiVoices.DEFAULT_FEMALE_VOICE
 
     /** Blank = AI 미설정, [managerReplyFor]가 기존 스크립트 대사로만 답한다. 설정에서 키를
      * 넣으면 실제 Gemini API(무료 티어)로 자유 대화가 된다 - 이 앱은 백엔드가 없어서 사용자
@@ -158,6 +161,12 @@ class TouchAccessibilityService : AccessibilityService() {
         }
         serviceScope.launch {
             aiChatRepository.apiKey.collect { key -> managerApiKey = key }
+        }
+        serviceScope.launch {
+            managerRepository.maleVoiceName.collect { name -> maleVoiceName = name }
+        }
+        serviceScope.launch {
+            managerRepository.femaleVoiceName.collect { name -> femaleVoiceName = name }
         }
     }
 
@@ -377,7 +386,7 @@ class TouchAccessibilityService : AccessibilityService() {
     private suspend fun speakManagerReply(text: String) {
         val apiKey = managerApiKey
         if (apiKey.isNotBlank()) {
-            val voiceName = if (currentPersona == ManagerPersona.MALE) GEMINI_VOICE_MALE else GEMINI_VOICE_FEMALE
+            val voiceName = if (currentPersona == ManagerPersona.MALE) maleVoiceName else femaleVoiceName
             val result = GeminiTtsClient.synthesize(apiKey, text, voiceName)
             if (result.isSuccess) {
                 val audio = result.getOrThrow()
@@ -665,12 +674,6 @@ class TouchAccessibilityService : AccessibilityService() {
         private const val CONTINUOUS_LISTEN_GAP_MILLIS = 400L
         private const val MALE_PITCH = 0.85f
         private const val FEMALE_PITCH = 1.15f
-
-        /** Prebuilt Gemini TTS voice names (see Gemini API docs) used for each persona when an
-         * AI key is configured - picked for how they sound (Charon: deeper/informative, Kore:
-         * firm/clear), not an official gender label from Google. */
-        private const val GEMINI_VOICE_MALE = "Charon"
-        private const val GEMINI_VOICE_FEMALE = "Kore"
 
         /** user+assistant 합쳐서 최대 이만큼만 맥락으로 들고 간다 - 라이딩 내내 무한히 쌓이면
          * 매 요청이 점점 느려지고(토큰 수 증가) 비용도 늘어난다. */
