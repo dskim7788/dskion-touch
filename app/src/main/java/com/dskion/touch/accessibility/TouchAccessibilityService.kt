@@ -65,11 +65,24 @@ import kotlin.coroutines.resume
 class TouchAccessibilityService : AccessibilityService() {
 
     private var lastProcessedAtMillis = 0L
-    private val phraseRepository = CommandPhraseRepository(this)
-    private val modeRepository = ModeRepository(this)
-    private val monitoredAppsRepository = MonitoredAppsRepository(this)
-    private val managerRepository = ManagerRepository(this)
-    private val aiChatRepository = AiChatRepository(this)
+
+    /**
+     * All five by [lazy], not plain `val` - these repositories' Flow properties touch
+     * `context.applicationContext` the moment they're constructed (DataStore's
+     * `preferencesDataStore` delegate resolves its singleton eagerly), and a Service's base
+     * Context isn't attached yet while its own field initializers are still running (that only
+     * happens afterward, when the system calls attachBaseContext() post-construction). Building
+     * any of them here as a plain `val` crashed with "Unable to create service ... Caused by:
+     * NullPointerException ... getApplicationContext() on a null object reference" - every single
+     * time this service's process was freshly created, before onServiceConnected (or any UI) ever
+     * ran. `by lazy` defers construction to first actual use, which only happens from
+     * onServiceConnected() onward, by which point the Context is fully attached.
+     */
+    private val phraseRepository by lazy { CommandPhraseRepository(this) }
+    private val modeRepository by lazy { ModeRepository(this) }
+    private val monitoredAppsRepository by lazy { MonitoredAppsRepository(this) }
+    private val managerRepository by lazy { ManagerRepository(this) }
+    private val aiChatRepository by lazy { AiChatRepository(this) }
     private var managerVoiceChatEnabled = true
     private var currentPersona: ManagerPersona = ManagerPersona.FEMALE
     private var maleVoiceName: String = GeminiVoices.DEFAULT_MALE_VOICE
