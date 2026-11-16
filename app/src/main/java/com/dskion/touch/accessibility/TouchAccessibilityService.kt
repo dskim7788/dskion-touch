@@ -4,6 +4,7 @@ import android.Manifest
 import android.accessibilityservice.AccessibilityService
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
@@ -237,11 +238,20 @@ class TouchAccessibilityService : AccessibilityService() {
             manager.createNotificationChannel(
                 NotificationChannel(NOTIFICATION_CHANNEL_ID, "dskion touch 서비스", NotificationManager.IMPORTANCE_LOW),
             )
+            // 앱을 열지 않고도 알림에서 바로 서비스를 끌 수 있게 - disableSelf()는 시스템
+            // 설정에서 접근성을 직접 꺼는 것과 동일하게 동작한다.
+            val stopPendingIntent = PendingIntent.getBroadcast(
+                this,
+                0,
+                Intent(this, StopAccessibilityServiceReceiver::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
             val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
                 .setContentTitle(getString(R.string.service_status_title))
                 .setContentText(getString(R.string.service_status_on))
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setOngoing(true)
+                .addAction(0, getString(R.string.notification_stop_action), stopPendingIntent)
                 .build()
             val micGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
                 PackageManager.PERMISSION_GRANTED

@@ -42,6 +42,7 @@
     <string name="service_status_title">서비스 상태</string>
     <string name="service_status_on">실행 중</string>
     <string name="service_status_off">꺼짐</string>
+    <string name="notification_stop_action">서비스 끄기</string>
 
     <string name="home_status_running_desc">배민/쿠팡이츠 화면을 모니터링하고 있어요</string>
     <string name="home_status_off_desc">접근성 권한을 켜면 서비스가 시작돼요</string>
