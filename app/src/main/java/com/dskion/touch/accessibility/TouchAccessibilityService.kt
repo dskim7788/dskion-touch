@@ -37,6 +37,7 @@ import com.dskion.touch.data.ModeRepository
 import com.dskion.touch.data.MonitoredAppsRepository
 import com.dskion.touch.data.OperatingMode
 import com.dskion.touch.overlay.VoiceOverlayController
+import com.dskion.touch.voice.AudioFocusCoordinator
 import com.dskion.touch.voice.PcmPlayer
 import com.dskion.touch.voice.TtsSpeaker
 import com.dskion.touch.voice.VoiceRecognizer
@@ -405,7 +406,7 @@ class TouchAccessibilityService : AccessibilityService() {
      * that fails or no key is set. Always suspends until playback is actually done - the chat
      * loop starts listening again right after this returns, so the mic must not still be hearing
      * the manager's own voice. */
-    private suspend fun speakManagerReply(text: String) {
+    private suspend fun speakManagerReply(text: String) = AudioFocusCoordinator.withFocus(this) {
         val apiKey = managerApiKey
         if (apiKey.isNotBlank() && voiceEngine == ManagerVoiceEngine.AI) {
             val voiceName = if (currentPersona == ManagerPersona.MALE) maleVoiceName else femaleVoiceName
@@ -413,7 +414,7 @@ class TouchAccessibilityService : AccessibilityService() {
             if (result.isSuccess) {
                 val audio = result.getOrThrow()
                 PcmPlayer.play(audio.pcm, audio.sampleRateHz)
-                return
+                return@withFocus
             }
         }
         ttsSpeaker.speakAndAwait(text)
@@ -597,7 +598,15 @@ class TouchAccessibilityService : AccessibilityService() {
             ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_matched, text))
             if (text.replace(" ", "").contains("시작")) {
                 RideStatsHolder.recordStartWork()
-                if (managerVoiceChatEnabled) ttsSpeaker.speak(ManagerLines.forStartWork())
+                if (managerVoiceChatEnabled) {
+                    // Fire-and-forget, same as before - vibrate() right after should not wait on
+                    // the TTS line finishing, so focus is requested/released in its own coroutine.
+                    serviceScope.launch {
+                        AudioFocusCoordinator.withFocus(this@TouchAccessibilityService) {
+                            ttsSpeaker.speakAndAwait(ManagerLines.forStartWork())
+                        }
+                    }
+                }
             }
             vibrate()
         } else if (!silent) {
@@ -627,7 +636,7 @@ class TouchAccessibilityService : AccessibilityService() {
     private fun reportDispatchResult(spokenText: String, resultMessage: String, managerLine: String? = null) {
         val fullMessage = if (managerLine != null) "$resultMessage $managerLine" else resultMessage
         ScreenStateHolder.setVoiceStatus(getString(R.string.console_voice_dispatch_result, spokenText, fullMessage))
-        ttsSpeaker.speak(fullMessage)
+        serviceScope.launch { AudioFocusCoordinator.withFocus(this@TouchAccessibilityService) { ttsSpeaker.speakAndAwait(fullMessage) } }
         vibrate()
     }
 
